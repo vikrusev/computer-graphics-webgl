@@ -1,0 +1,55 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Final Project - The Maze v1.0</title>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+	<link rel="stylesheet" type="text/css" href="css/main.css">
+</head>
+
+<body>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso"></canvas>
+
+	<div class="instructions">
+		<ul>
+			<li>Right click to move the camera</li>
+			<li>Collect all orbs</li>
+		</ul>
+	</div>
+
+	<div class="end-message-wrapper">
+		<div class="end-message">
+	    	<p>Thank you for playing The Maze v1.0</p>
+	    	<button onclick="window.location.reload()">Play Again</button>
+	    </div>
+	</div>
+
+	<script src="lib/webgl-fmi.js"></script>
+
+	<script src="shaders/characterShaders.js"></script>
+	<script src="shaders/mazeShaders.js"></script>
+	<script src="shaders/wallShaders.js"></script>
+
+	<script src="engine/core.js"></script>
+	<script src="engine/movements.js"></script>
+	<script src="engine/rotate-field.js"></script>
+	<script src="engine/collisions.js"></script>
+
+	<script src="lib/maze/maze.js"></script>
+	<script src="lib/maze/maze-parts/platform.js"></script>
+	<script src="lib/maze/maze-parts/wall.js"></script>
+
+	<script src="lib/alien/alien.js"></script>
+	<script src="lib/alien/body-parts/body.js"></script>
+	<script src="lib/alien/body-parts/center.js"></script>
+	<script src="lib/alien/body-parts/eye.js"></script>
+	<script src="lib/alien/body-parts/leg.js"></script>
+
+</body>

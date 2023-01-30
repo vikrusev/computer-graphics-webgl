@@ -1,0 +1,1 @@
+## ! This homework has to be setup w/ Apache in order for the textures to be applied correctly
