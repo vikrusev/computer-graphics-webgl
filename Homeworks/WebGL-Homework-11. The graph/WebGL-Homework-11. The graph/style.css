@@ -1,0 +1,57 @@
+canvas {
+	display: block;
+	position: absolute;
+	left: 2em;
+	top: 2em;
+	margin: auto;
+	width: calc(100% - 4em);
+	height: calc(100% - 5em);
+	min-height: 210px;
+	box-shadow: 0px 0px 6em DarkBlue;
+}
+
+div.alpha {
+	position: absolute;
+	width: 37%;
+	height: 120px;
+	bottom: 3em;
+	z-index: 9999;
+}
+
+div.alpha .border {
+	position: relative;
+	background-color: #0000ff;
+	width: 6px;
+	height: 100%;
+	cursor: e-resize;
+}
+
+div.alpha .border .value {
+	position: absolute;
+	left: -10px;
+	bottom: -30px;
+	user-select: none;
+}
+
+div.alpha #rightBorder {
+	float: right;
+}
+
+div.alpha#left {
+	left: 2em;
+	background: linear-gradient(.25turn, rgba(255, 255, 255, .8), 50%, rgba(0, 0, 255, .6));
+}
+
+div.alpha#right {
+	right: 2em;
+	background: linear-gradient(-.25turn, rgba(255, 255, 255, .8), 50%, rgba(0, 0, 255, .6));
+}
+
+
+@media (max-height: 289px) {
+
+	div.alpha {
+		top: calc(210px + 2em - 120px);
+	}
+
+}

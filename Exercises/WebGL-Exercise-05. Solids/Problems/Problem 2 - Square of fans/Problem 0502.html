@@ -1,0 +1,111 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Квадрат от ветрила</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		attribute vec2 aXY;
+		attribute vec3 aColor;
+		varying vec3 vColor;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXY,0,1);
+			vColor = aColor;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vColor;
+		void main( )
+		{
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		var N=10;
+		var C=N/2-1;
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			aColor = gl.getAttribLocation(glprog,"aColor");
+
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			var data = [];
+			
+			// генериране на върховете на ветрилата
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,2*FLOATS,0*FLOATS);
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([C,C,30], [C,C,0], [Math.sin(frame/200),Math.cos(frame/200),0]);
+
+			useMatrix();
+
+			// рисуване на ветрилата и контурите и центровете,
+			// използвайки един и същ буфер от върхове
+			gl.drawArrays(gl.TRIANGLE_FAN,0,0);
+			gl.drawArrays(gl.LINE_LOOP,0,0);
+			gl.drawArrays(gl.POINTS,0,0);
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Квадрат от ветрила</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

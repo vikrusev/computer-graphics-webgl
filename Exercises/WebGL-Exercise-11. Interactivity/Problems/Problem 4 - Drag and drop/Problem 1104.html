@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Влачене</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+			
+			// прехващане на мишката само над графичното поле
+			canvas.addEventListener('mousemove',mouseMove,false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.7,0.9,1,1);
+
+			identity();
+			var proj=orthoMatrix(gl.canvas.width,gl.canvas.height,-1000,1000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// пръснати сфери
+			n = 10;
+			obj = [];
+			for (var i=0; i<n; i++)
+			{
+				obj[i] = new Sphere([random(-250,250),random(-150,150),0],random(15,40));
+				obj[i].color = [random(0.5,1),random(0.5,1),random(0.5,1)];
+				obj[i].selectColor = [i/255,0,1];
+			}
+		}
+
+		var selected = -1;
+		var pixelValues = new Uint8Array(4*4);
+		
+		var oldTime = now();
+		var mouseX = 0;
+		var mouseY = 0;
+		
+		function drawFrame()
+		{
+			time = now();
+			dT = time-oldTime;
+			oldTime += dT;
+	
+			lookAt([0,0,200],[0,0,0],[0,1,0]);
+
+			// нормален режим - изчистваме буфера
+			gl.uniform1i(uSelectMode,false);
+			gl.clearColor(0.5,0.8,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			// рисуване на обектите
+			for (var i=0; i<n; i++)
+				obj[i].draw();
+		}
+		
+		// при движение на мишката местим избрания обект
+		// (ако има такъв)
+		function mouseMove(event)
+		{
+			obj[0].center = [getX(event),getY(event),0];
+			requestAnimationFrame(drawFrame);
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h2>Влачене</h2>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

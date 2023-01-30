@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Ямайка</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			aRGB = gl.getAttribLocation(glprog,"aRGB");
+			
+			// жълт фон
+			gl.clearColor(1,0.8,0,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// n определя дебелината на жълтата линия
+			var n = 0.2;
+			var data = [
+				-1,1-n,-1,n-1,-n,0,   n,0,1,n-1,1,1-n,	// черни триъгълници
+				0,-n,n-1,-1,1-n,-1,   1-n,1,n-1,1,0,n ];// зелени триъгълници
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+			
+			// първо рисуваме черните триъгълници
+			gl.vertexAttrib3f(aRGB,0,0,0);
+			gl.drawArrays(gl.TRIANGLES,0,6);
+
+			// после рисуваме зелените триъгълници
+			gl.vertexAttrib3f(aRGB,0.1,0.6,0.2);
+			gl.drawArrays(gl.TRIANGLES,6,6);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Ямайка</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="300" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

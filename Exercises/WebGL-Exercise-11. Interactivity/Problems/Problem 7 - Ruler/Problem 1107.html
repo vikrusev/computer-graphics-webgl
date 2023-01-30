@@ -1,0 +1,129 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Линийка</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+			
+			// прехващане на мишката само над графичното поле
+			canvas.addEventListener('mousemove',mouseMove,false);
+			canvas.addEventListener('mousedown',mouseDown,false);
+			canvas.addEventListener('mouseup',mouseUp,false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.85,0.9,0.95,1);
+
+			identity();
+			var proj=orthoMatrix(gl.canvas.width,gl.canvas.height,-1000,1000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// линийка
+			ruler = new Cuboid([0,0,0],[45,300,0.1]);
+			ruler.color = [1,1,1];
+			ruler.texture = loadTexture('ruler.jpg',function(){requestAnimationFrame(drawFrame);});
+			ruler.rot = [0,0,0,0];
+		}
+
+		var selected = false;
+		var pixelValues = new Uint8Array(4);
+		
+		var mouseX = 0;
+		var mouseY = 0;
+		
+		function drawFrame()
+		{
+			lookAt([0,0,50],[0,0,0],[0,1,0]);
+
+			// нормален режим - изчистваме буфера
+			gl.uniform1i(uSelectMode,false);
+			gl.clearColor(0.85,0.9,0.95,1);
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			// рисуване на линийката
+			ruler.draw();
+		}
+		
+		// при движение на мишката местим линийката
+		function mouseMove(event)
+		{
+			if (event.which==0 || !selected) return;
+			
+			var x = getX(event);
+			var y = getY(event);
+
+			ruler.center[0] += x-mouseX;
+			ruler.center[1] += y-mouseY;
+			
+			mouseX = x;
+			mouseY = y;
+			requestAnimationFrame(drawFrame);
+		}
+		
+		// при натискане на бутон проверяваме кой обект е отдолу
+		function mouseDown(event)
+		{
+			mouseX = getX(event)+Math.round(gl.canvas.width/2);
+			mouseY = getY(event)+Math.round(gl.canvas.height/2);
+
+			// режим на плосък цвят - изчистваме буфера
+			gl.uniform1i(uSelectMode,true);
+			gl.clearColor(0,0,0,1);
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			gl.uniform3fv(uSelectColor,[1/255,1,1]);
+			ruler.draw();
+			
+			// четем цветовете
+			gl.readPixels(mouseX, mouseY, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelValues);
+			
+			mouseX = getX(event);
+			mouseY = getY(event);
+			var pos = [mouseX,mouseY];
+			
+			selected = pixelValues[0]>0;
+
+			requestAnimationFrame(drawFrame);
+		}
+		
+		// пускане на бутон = пускане на обект
+		function mouseUp(event)
+		{
+			selected = 0;
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h2>Линийка</h2>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

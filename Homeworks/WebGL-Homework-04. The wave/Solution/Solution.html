@@ -1,0 +1,259 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Вълнàта</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		precision mediump float;
+
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform float uTime; // глобално време за смятане на вълнението
+		
+		attribute vec2 aXY;
+		attribute vec3 aColor;
+
+		varying vec3 vColor;
+		varying vec3 vPos;
+		varying vec2 vXY;
+		
+		// пресмята височината на вълната на
+		// дадени координати в даден момент
+		vec3 calcZ(vec2 p)
+		{
+			float r = length(p);
+			return vec3(p,10.0*cos(r/5.0-uTime)*cos(r/10.0-uTime)*cos(r/20.0-uTime));
+		}
+
+		void main ()
+		{
+			// осветяването изцяло е пренесено в шейдъра за фрагменти
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXY,calcZ(aXY).z,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			vXY = aXY;
+			vColor = aColor;
+			vPos = pos.xyz;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		#define PI 3.1415926535897932384626433832795
+
+		uniform float uTime;
+
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		mat4 mvMatrix = uViewMatrix * uModelMatrix;
+
+		uniform bool uUseNyan;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+		uniform float uShininess;
+
+		varying vec3 vColor;
+		varying vec3 vPos;
+		varying vec2 vXY;
+
+		// пресмята височината на вълната на
+		// дадени координати и в даден момент
+		vec3 calcZ(vec2 p)
+		{
+			float r = length(p);
+			return vec3(p,10.0*cos(r/5.0-uTime)*cos(r/10.0-uTime)*cos(r/20.0-uTime));
+		}
+
+		// пресмята нормалният вектор с точност фрагмент
+		vec3 normZ(vec2 p)
+		{
+			vec3 p0 = calcZ(p);
+			vec3 p1 = calcZ(vec2(p.x+0.1,p.y));
+			vec3 p2 = calcZ(vec2(p.x,p.y+0.1));
+			return normalize(mvMatrix*vec4(cross(p1-p0,p2-p0),0)).xyz;
+		}
+		
+		void main( )
+		{
+			vec3 specularColor = vec3(0);
+			vec3 normal = normalize(normZ(vXY));
+
+			vec3 color = vColor;
+			if (uUseNyan)
+			{
+				float d = length(vXY);
+				color.r = 1.0+sin(d/10.0-uTime+0.0*PI/3.0);
+				color.g = 1.0+sin(d/10.0-uTime+2.0*PI/3.0);
+				color.b = 1.0+sin(d/10.0-uTime+4.0*PI/3.0);
+			}
+
+			// околна светлина
+			if (uUseAmbient)
+				color *= uAmbientColor;
+
+			// дифузно отражение
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)
+				color += vColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			// огледално отражение
+			if (uUseSpecular)
+			{
+				vec3 light = normalize(-uLightDir);
+				vec3 reflectedLight = normalize(reflect(light,normal));
+				vec3 viewDir = normalize(vPos);
+				float cosa = max(dot(reflectedLight,viewDir),0.0);
+				specularColor = uSpecularColor*pow(cosa,uShininess);
+			}
+
+			gl_FragColor = vec4(color+specularColor,1);
+		}
+	</script>
+
+	<script>
+		var k=40;
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			
+			uTime = gl.getUniformLocation(glprog,"uTime");
+			uUseNyan = gl.getUniformLocation(glprog,"uUseNyan");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+
+			uSpecularColor = gl.getUniformLocation(glprog,"uSpecularColor");
+			uUseSpecular = gl.getUniformLocation(glprog,"uUseSpecular");
+
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+			uShininess = gl.getUniformLocation(glprog,"uShininess");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+		
+			// генерираме само плоски триъгълници: Z-координатите и
+			// нормалните вектори ще бъдат пресметнати в шейдърите
+			var data = [];
+			for (var x=-k; x<k; x++)
+				for (var y=-k; y<k; y++)
+				{
+					data.push(x,y,   x+1,y, x,y+1);
+					data.push(x,y+1, x+1,y, x+1,y+1);
+				}
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,2*FLOATS,0*FLOATS);
+
+			// настройка на цветове и светлини
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,1,1,1);
+			gl.uniform1f(uShininess,10);
+
+			gl.uniform3f(uLightDir,0,0,-1);
+			
+			gl.uniform1i(uUseAmbient,true);
+			gl.uniform1i(uUseDiffuse,true);
+			gl.uniform1i(uUseSpecular,true);
+			
+			setNyan(false);
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT); // изчистваме цвета и дълбочината
+
+			// движение на камерата около повърхнината с периодично
+			// приближаване към и отдалечаване от нея
+			var dist = 80+37*Math.sin(frame/100);
+			var d = 0.6+0.3*Math.sin(frame/200);
+			lookAt([dist*Math.cos(frame/300)*d,dist*Math.sin(frame/300)*d,(140-dist)*d], [0.1,-0.1,0], [0,0,1]);
+
+			gl.uniform1f(uTime,frame/30);
+
+			useMatrix();
+			gl.drawArrays(gl.TRIANGLES,0,(2*k)*(2*k)*(2*3));
+	
+			requestAnimationFrame(drawFrame);
+		}
+
+		function setNyan(onOff)
+		{
+			if (onOff)
+			{
+				gl.uniform1i(uUseNyan,true);
+				gl.vertexAttrib3f(aColor,0.5,0.5,0.5);
+				gl.uniform3f(uAmbientColor,0.4,0.4,0.4);
+			}
+			else
+			{
+				gl.uniform1i(uUseNyan,false);
+				gl.vertexAttrib3f(aColor,0.45,0.38,0.35);
+				gl.uniform3f(uAmbientColor,0.5,0.3,0);
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Вълнàта</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+
+	<p>
+		<button onclick="setNyan(false)">От шоколад</button>
+		<button onclick="setNyan(true)">От нян</button>
+	</p>
+</body>

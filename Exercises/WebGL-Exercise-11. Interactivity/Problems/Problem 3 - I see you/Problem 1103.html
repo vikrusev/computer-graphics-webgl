@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Виждам те</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+			
+			init();
+			resized();
+			drawFrame();
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0,0,0);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,0,0,0);
+			gl.uniform1f(uShininess,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// използваме модул №0 за текстури
+			gl.uniform1i(uTexUnit, 0);
+			gl.activeTexture(gl.TEXTURE0);
+
+			SPHERE_SIDES = 64;
+			
+			var m = texIdentity();
+			texTranslate(m,[0,0.71]);
+			texScale(m,[1,1.3]);
+
+			s1 = new Sphere([0,0,0],10);
+			s1.texture = loadTexture('eye.jpg');
+			s1.color = [1,1,1];
+			s1.texMatrix = m;
+		}
+
+		function drawFrame()
+		{
+			time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([0,0,100],[0,0,0],[0,1,0]);
+
+			s1.draw();
+			requestAnimationFrame(drawFrame);
+		}
+
+		function resized()
+		{
+			gl.canvas.width = gl.canvas.offsetWidth;
+			gl.canvas.height = gl.canvas.offsetHeight;
+			gl.viewport(0,0,gl.canvas.width,gl.canvas.height);
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

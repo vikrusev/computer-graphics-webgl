@@ -1,0 +1,34 @@
+﻿<!DOCTYPE html>
+
+<!-- Ами това е началният код. Няма почти нищо в него, затова
+го напълнете с каквото счетете за подходящо. -->
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Графиката</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+
+	<script src="initFunc.js"></script>
+
+	<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body onload="start()">
+	<div class="alpha" id="left">
+		<div class="border" id="rightBorder">
+			<span class="value" id="xFrom">1940</span>
+		</div>
+	</div>
+	<div class="alpha" id="right">
+		<div class="border" id="leftBorder">
+			<span class="value" id="xTo">3060</span>	
+		</div>
+	</div>
+
+	<canvas id="picasso"></canvas>
+
+	<script src="webglMain.js"></script>
+	<script src="main.js"></script>
+</body>

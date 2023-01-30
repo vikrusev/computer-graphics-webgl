@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Филмова ролка</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		void main ()
+		{
+			// аспекта поправяме с покомпонентно умножение
+			gl_Position = vec4(aXY*vec2(1.0/1.5,1),0,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		// точки по ролката
+		var n = 360;
+
+		// помощна функция за смятане на косинус
+		function c(i)
+		{
+			return Math.cos(2*Math.PI*i/n);
+		}
+
+		// помощна функция за смятане на синус
+		function s(i)
+		{
+			return Math.sin(2*Math.PI*i/n);
+		}
+		
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// създаване на данни за две окръжности
+			var data = [ ];
+			for(var i=0; i<n; i++) data.push(0.85*c(i),0.85*s(i));
+			for(var i=0; i<n; i++) data.push(0.10*c(i),0.10*s(i));
+			
+			// и после още 12 дъги - 6 двойки вътрешна
+			// и външна за 6-те отвора
+			for(var j=0; j<6; j++)
+			{
+				for(var i=0; i<40; i++)
+					data.push(0.75*c(60*j+i),0.75*s(60*j+i));
+				for(var i=39; i>=0; i--)
+					data.push(0.20*c(60*j+i),0.20*s(60*j+i));
+			}
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.uniform3f(uColor,0.3,0.7,0.2);
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+
+			// рисуване на външната окръжност
+			gl.drawArrays(gl.LINE_LOOP,0,n);
+
+			// рисуване на вътрешната окръжност
+			gl.drawArrays(gl.LINE_LOOP,n,n);
+
+			// рисуване на 6-те отвора
+			for(var j=0; j<6; j++)
+				gl.drawArrays(gl.LINE_LOOP,2*n+j*80,80);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Филмова ролка</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

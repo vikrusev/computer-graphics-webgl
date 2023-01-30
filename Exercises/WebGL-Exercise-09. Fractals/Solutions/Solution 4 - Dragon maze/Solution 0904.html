@@ -1,0 +1,174 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Драконов лабиринт</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		var color;
+		var data = [0,0,-10,1,1,1, 0,0,-10,0,0,0];	// буфер с върхове и цветове
+		var mat = unitMatrix(); // работна матрица
+		var fCount = 0; // брой на отсечките
+
+		// стъпка напред
+		function F(d)
+		{
+			mat[12] += mat[0]*d;
+			mat[13] += mat[1]*d;
+			mat[14] += mat[2]*d;
+			
+			fCount++;
+			var r = Math.sqrt(mat[12]*mat[12]+mat[13]*mat[13]);
+			var z = 3.5-2*cos(r/5)-1.5*cos(fCount/15);
+			
+			// точка от горната част на лента
+			data.push(mat[12],mat[13],z);
+			data.push(0.5+0.4*cos(fCount/60.0),0.5+0.4*sin(fCount/50.0),0.5+0.4*cos(fCount/70.0));
+			
+			// точка от долната част на лента
+			data.push(mat[12],mat[13],z-6);
+			data.push(0,0,0);
+		}
+
+		// завой надясно
+		function R(a)
+		{
+			a = radians(a);
+			var s = Math.sin(a);
+			var c = Math.cos(a);
+			
+			a = mat[0]*s+mat[4]*c;
+			mat[0]=mat[0]*c-mat[4]*s;
+			mat[4]=a;
+			
+			a = mat[1]*s+mat[5]*c;
+			mat[1]=mat[1]*c-mat[5]*s;
+			mat[5]=a;
+			
+			a = mat[2]*s+mat[6]*c;
+			mat[2]=mat[2]*c-mat[6]*s;
+			mat[6]=a;
+		}
+
+
+		// драконов лабиринт - конструктор на драконова
+		// крива под формата на цветна лента
+		function MazeDragon()
+		{
+			var l = 2/4; // дължина на прав участък
+			var d = (1-l)/Math.sqrt(2); // дължина на скосен участък
+			F((1-l)/2); // първоначално отместване
+			for (var i=1; i<20000; i++)
+			{
+				// s=1 за завой надясно, s=-1 за наляво
+				var s = ((((i&-i)<<1)&i)==0)?-1:1;
+				F(l); // прав участък
+				R(45*s);
+				F(d); // скосен участък
+				R(45*s);
+			}
+			
+			this.buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			this.n = data.length/6;
+			this.center = [0,0,0];
+			this.size = 1.2;
+		}
+		
+		// драконов лабиринт - рисуване
+		MazeDragon.prototype.draw = function()
+		{
+			pushMatrix();
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				
+				// рисуване на цветната лента
+				gl.enableVertexAttribArray(aXYZ);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+				gl.enableVertexAttribArray(aColor);
+				gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+				gl.drawArrays(gl.TRIANGLE_STRIP,0,this.n);
+
+				// рисуване на белия контур
+				gl.disableVertexAttribArray(aColor);
+				gl.vertexAttrib3fv(aColor,[1,1,1]);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,12*FLOATS,0*FLOATS);
+				gl.drawArrays(gl.LINE_STRIP,0,this.n/2);
+			popMatrix();
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			// създаване на драконов лабиринт
+			maze = new MazeDragon();
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			// движение на гледната точка
+			lookAt(
+				[50*cos(time/5),70*sin(time/5.2),20+5*sin(time/2)],
+				[20*cos(time/3+2),10*sin(time/3+2),-10],
+				[sin(time/3),cos(time/2),2]);
+
+				// рисуване на 4 ленти като криви на дракона
+			// със завъртане през 90 градуса и променящо
+			// се накланяне
+			pushMatrix();
+				for (var i=0; i<4; i++)
+				{
+					zRotate(90);
+					xRotate(2*sin(2*time+i*PI/2));
+					maze.draw();
+					xRotate(-2*sin(2*time+i*PI/2));
+				}
+			popMatrix();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Драконов лабиринт</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

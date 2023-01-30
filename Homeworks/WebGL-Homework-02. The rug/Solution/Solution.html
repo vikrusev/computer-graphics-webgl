@@ -1,0 +1,99 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Чергата</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			aRGB = gl.getAttribLocation(glprog,"aRGB");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// брой черги m, брой точки n
+			var m = 11;
+			var n = 200;
+			
+			// масив със случаен мащаб и отместване на всяка синусоида
+			var ofs = [];
+			var sca = [];
+			for(var j=0; j<m+1; j++) ofs[j]=random(0,2*Math.PI);
+			for(var j=0; j<m+1; j++) sca[j]=random(0.02,0.1);
+			
+			// създаване на черга като ограничена от две синусоиди
+			var data = [];
+			for(var j=0; j<m; j++)
+			for(var i=0; i<n; i++)
+			{
+				var x1 = 2.2*(j/(m-1)-0.51)+Math.sin(i*sca[j]+ofs[j])/m/1.1;
+				var y = 2*i/(n-1)-1;
+
+				var x2 = 2.2*((j+1)/(m-1)-0.51)+Math.sin(i*sca[j+1]+ofs[j+1])/m/1.1;
+				data.push(x1+0.015,y);
+				data.push(x2-0.015,y);
+			}
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			// рисуване
+			gl.enableVertexAttribArray(aXY);
+			for(var j=0; j<m; j++)
+			{
+				// рисуване на черга
+				gl.vertexAttrib3f(aRGB,random(0.5,1),random(0.5,1),random(0.5,1));
+				gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+				gl.drawArrays(gl.TRIANGLE_STRIP,2*n*j,2*n);
+
+				// рисуване на двата ѝ контура
+				gl.vertexAttrib3f(aRGB,0,0,0);
+				gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,4*FLOATS,0*FLOATS);
+				gl.drawArrays(gl.LINE_STRIP,n*j,n);
+				gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,4*FLOATS,2*FLOATS);
+				gl.drawArrays(gl.LINE_STRIP,n*j,n);
+			}
+
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Чергата</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

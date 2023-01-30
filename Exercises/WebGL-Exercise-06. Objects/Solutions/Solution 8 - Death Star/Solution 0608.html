@@ -1,0 +1,185 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Звездата на Смъртта</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		uniform mat4 uNormalMatrix; // матрица за нормалните вектори
+		uniform bool uUseNormalMatrix; // дали матрицата се подава отвън
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		uniform float uNormalDir; // посока на нормалния вектор
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		varying vec4 vXYZT;
+
+		// случайна функция по 2D вектор
+		highp float rand(vec2 co)
+		{
+			highp float a = 12.9898;
+			highp float b = 78.233;
+			highp float c = 43758.5453;
+			highp float dt= dot(co.xy ,vec2(a,b));
+			highp float sn= mod(dt,3.14);
+			return fract(sin(sn) * c)-0.5;
+		}
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXYZ,1);
+			mat4 nMatrix = uUseNormalMatrix?uNormalMatrix:mvMatrix;
+			
+			// околна светлина
+			if (uUseAmbient)
+				vColor = uAmbientColor*aColor;
+			else
+				vColor = aColor;
+
+			// дифузно отражение
+			if (uUseDiffuse)
+			{
+				vec3 normal = uNormalDir*aNormal;
+
+				// леко случайно променен нормален вектор
+				normal += vec3(rand(aXYZ.xy),rand(aXYZ.yz),rand(aXYZ.zx))/8.0;
+
+				vec3 light = normalize(-uLightDir);
+				normal = vec3(normalize(nMatrix*vec4(normal,0)));
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+				
+				// леко случайно променен цвят
+				vColor += vec3(rand(aXYZ.xz))/7.0;
+			}
+
+			vXYZT = vec4(aXYZ,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		
+		uniform vec4 uClipPlane; // изрязваща равнина
+
+		varying vec3 vColor;
+		varying vec4 vXYZT;
+		void main( )
+		{
+			// изрязване
+			if (dot(vXYZT,uClipPlane)<0.0) discard;
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			uNormalMatrix = gl.getUniformLocation(glprog,"uNormalMatrix");
+			uUseNormalMatrix = gl.getUniformLocation(glprog,"uUseNormalMatrix");
+			
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+			uNormalDir = gl.getUniformLocation(glprog,"uNormalDir");
+
+			uClipPlane = gl.getUniformLocation(glprog,"uClipPlane");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+			
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.15,0.15,0.15);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,1,-0.5,-0.5);
+
+			// дефиниране на сфера
+			GEODESIC_SIDES++;
+			GEODESIC_SIDES++;
+			GEODESIC_SIDES++;
+			c1 = new GeodesicSphere([0,0,0],3);
+			c2 = new GeodesicSphere([4,0,0],2);
+			c1.color = [0.7,0.7,0.8];
+			c2.color = c1.color;
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			lookAt([16*Math.cos(frame/100),16*Math.sin(frame/100),0], [0,0,0], [0,0,1]);
+			//yRotate(0.5);
+			
+			// рисуване на двете сфери
+			yRotate(-20); // издигаме кратера нагоре
+			gl.uniform4fv(uClipPlane,[-1,0,0,0.875]); // голямата сфера
+			gl.uniform1f(uNormalDir,1); // стандартен нормален вектор
+			c1.draw();
+			gl.uniform4fv(uClipPlane,[-1,0,0,-0.6875]); // малката сфера
+			gl.uniform1f(uNormalDir,-1); // противоположен нормален вектор
+			c2.draw();
+			yRotate(20); // връщаме оригиналната ориентация
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Звездата на Смъртта</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Викингска лодка</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		// базисни функции
+		var B = [];
+		B[0] = function(t) { return (-t*t*t+3*t*t-3*t+1)/6; }
+		B[1] = function(t) { return (3*t*t*t-6*t*t+4)/6; }
+		B[2] = function(t) { return (-3*t*t*t+3*t*t+3*t+1)/6; }
+		B[3] = function(t) { return (t*t*t)/6; }
+		// производни на базисни функции
+		var N = [];
+		N[0] = function(t) { return (-t*t+2*t-1)/2; }
+		N[1] = function(t) { return (3*t*t-4*t)/2; }
+		N[2] = function(t) { return (-3*t*t+2*t+1)/2; }
+		N[3] = function(t) { return (t*t)/2; }
+		
+		var BSPLINE_POINTS = 6;
+		
+		// B-сплайн повърхност - конструктор
+		function BSplineSurface(p)
+		{
+			this.data = [];
+			for (var i=0; i<2*BSPLINE_POINTS*(BSPLINE_POINTS-1); i++)
+				this.data.push(0,0,0,0,0,0);
+			this.data = new Float32Array(this.data);
+			this.buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferData(gl.ARRAY_BUFFER,this.data, gl.DYNAMIC_DRAW);
+			this.n = BSPLINE_POINTS;
+			this.color = [0.5,0.3,0.2];
+			this.set(p);
+		}
+
+		// B-сплайн - задаване на 4 контролни точки
+		BSplineSurface.prototype.set = function(p)
+		{
+			var n = this.n;
+			
+			// изчислява координатите на точка от повърхността
+			function vertexAt(u,v)
+			{
+				u = u/(n-1);
+				v = v/(n-1);
+				
+				var q = [0,0,0];
+				for (var i=0; i<4; i++) // контролни точки по направление u
+				for (var j=0; j<4; j++) // контролни точки по направление v
+				for (var k=0; k<3; k++) // координати x,y,z
+					q[k] += B[i](u)*B[j](v)*p[i][j][k];
+				return q;
+			}
+			// изчислява нормалния вектор към точка от повърхността
+			function normalAt(u,v)
+			{
+				u = u/(n-1);
+				v = v/(n-1);
+				
+				var nu = [0,0,0];
+				var nv = [0,0,0];
+				for (var i=0; i<4; i++) // контролни точки по направление u
+				for (var j=0; j<4; j++) // контролни точки по направление v
+				for (var k=0; k<3; k++) // координати x,y,z
+				{
+					nu[k] += N[i](u)*B[j](v)*p[i][j][k];
+					nv[k] += B[i](u)*N[j](v)*p[i][j][k];
+				}
+				return unitVector(vectorProduct(nu,nv));
+			}
+			
+			// обхождане на кривата
+			var m=0;
+			for (var i=0; i<n-1; i++) // номер на лента
+			for (var j=0; j<n; j++) // номер на лента
+			{
+				var q;
+				q = vertexAt(i,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+				q = normalAt(i,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+				
+				q = vertexAt(i+1,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+				q = normalAt(i+1,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+			}
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferSubData(gl.ARRAY_BUFFER,0,this.data);
+		}
+		
+		// B-сплайн - рисуване
+		BSplineSurface.prototype.draw = function()
+		{
+			pushMatrix();
+				gl.vertexAttrib3fv(aColor,this.color);
+				useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.enableVertexAttribArray(aNormal);
+				gl.enableVertexAttribArray(aXYZ);
+
+				// рисуване на повърхнината
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+				gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+				for (var i=0; i<this.n-1; i++)
+					gl.drawArrays(gl.TRIANGLE_STRIP,2*this.n*i,2*this.n);
+			popMatrix();
+		}
+		
+		// B-сплайн - деструктор
+		BSplineSurface.prototype.free = function()
+		{
+			gl.deleteBuffer(this.buf);
+		}
+
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.6,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// вълни на водната повърхност
+			BSPLINE_POINTS = 10;
+			sn = 10;
+			sm = 6;
+			s = []; // масив от контролни точки
+			for (var i=0; i<sn; i++)
+			{
+				s[i] = [];
+				for (var j=0; j<sm; j++)
+					s[i][j] = [i-(sn-1)/2,j-(sm-1)/2,0,random(0,2*PI)];
+			}
+			sea = []; // масив от сплайн повърхности
+			for (var i=0; i<sn-3; i++)
+			{
+				sea[i] = [];
+				for (var j=0; j<sm-3; j++)
+				{
+					sea[i][j] = new BSplineSurface([
+						[s[i+0][j+0],s[i+0][j+1],s[i+0][j+2],s[i+0][j+3]],
+						[s[i+1][j+0],s[i+1][j+1],s[i+1][j+2],s[i+1][j+3]],
+						[s[i+2][j+0],s[i+2][j+1],s[i+2][j+2],s[i+2][j+3]],
+						[s[i+3][j+0],s[i+3][j+1],s[i+3][j+2],s[i+3][j+3]]
+					]);
+					sea[i][j].color = [0,0.5,1];
+				}
+			}
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([70*cos(time/5),70*sin(time/5),2],[0,0,0],[0,0,1]);
+
+			// вълнение на контролните точки
+			for (var i=0; i<sn; i++)
+			for (var j=0; j<sm; j++)
+				s[i][j][2] = 3*sin(2*time+s[i][j][3])-1;
+			
+			// актуализиране на сплайните на вълните
+			for (var i=0; i<sn-3; i++)
+			for (var j=0; j<sm-3; j++)
+			{
+					sea[i][j].set([
+					[s[i+0][j+0],s[i+0][j+1],s[i+0][j+2],s[i+0][j+3]],
+					[s[i+1][j+0],s[i+1][j+1],s[i+1][j+2],s[i+1][j+3]],
+					[s[i+2][j+0],s[i+2][j+1],s[i+2][j+2],s[i+2][j+3]],
+					[s[i+3][j+0],s[i+3][j+1],s[i+3][j+2],s[i+3][j+3]]
+					]);
+			}
+
+			// рисуване на водата
+			pushMatrix();
+				scale([10,10,1]);
+				for (var i=0; i<sn-3; i++)
+				for (var j=0; j<sm-3; j++)
+					sea[i][j].draw();
+			popMatrix();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Викингска лодка</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Виждам те</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<style>
+		canvas {
+			display: block;
+			position: fixed;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+			canvas.addEventListener('mousemove',mouseMove,false);
+			window.addEventListener('resize',resized,false);
+			
+			init();
+			resized();
+			drawFrame();
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0,0,0);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,1,1,1);
+			gl.uniform1f(uShininess,40);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// използваме модул №0 за текстури
+			gl.uniform1i(uTexUnit, 0);
+			gl.activeTexture(gl.TEXTURE0);
+
+			SPHERE_SIDES = 64;
+			
+			var m = texIdentity();
+			texTranslate(m,[0,0.71]);
+			texScale(m,[1,1.3]);
+
+			s1 = new Sphere([-15,0,0],10);
+			s1.texture = loadTexture('eye.jpg');
+			s1.color = [1,1,1];
+			s1.texMatrix = m;
+
+			s2 = new Sphere([15,0,0],10);
+			s2.texture = loadTexture('eye.jpg');
+			s2.color = [1,1,1];
+			s2.texMatrix = m;
+		}
+
+		function drawFrame()
+		{
+			time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([0,0,100],[0,0,0],[0,1,0]);
+
+			s1.draw();
+			s2.draw();
+			requestAnimationFrame(drawFrame);
+		}
+
+		function mouseMove(event)
+		{
+			var x = getX(event)/(gl.canvas.offsetWidth/2)*40;
+			var y = getY(event)/(gl.canvas.offsetHeight/2)*40*gl.canvas.offsetHeight/gl.canvas.offsetWidth;
+			s1.rot = [0,x+20,y,0];
+			s2.rot = [0,x-20,y,0];
+		}
+		
+		function resized()
+		{
+			gl.canvas.width = gl.canvas.offsetWidth;
+			gl.canvas.height = gl.canvas.offsetHeight;
+			gl.viewport(0,0,gl.canvas.width,gl.canvas.height);
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+		}
+	</script>
+</head>
+
+<body onload="start()" style="background-color:Black; text-align:center;">
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

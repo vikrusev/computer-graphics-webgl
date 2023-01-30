@@ -1,0 +1,159 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Жестове</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	<script src="skeleton.js"></script>
+	
+	<script>
+		// пръст - конструктор
+		var skin=[1,0.87,0.77];
+		var nail=[1,0,0];
+		Finger = function(size)
+		{	
+			var s = 0.8;
+			var r = size;
+			var h = 3.5*size;
+			this.bone1=new Bone(h,
+				[ custom(new Sphere([0,0,0],r),{color:skin}),
+				  custom(new Conoid([0,0,0],[r,r,h],[s,s]),{color:skin,hollow:true}) ] );
+			r *= s;
+			h *= s;
+			this.bone2=new Bone(h,
+				[ custom(new Sphere([0,0,0],r),{color:skin}),
+				  custom(new Conoid([0,0,0],[r,r,h],[s,s]),{color:skin,hollow:true}) ] );
+			r *= s;
+			h *= s;
+			this.bone3=new Bone(h,
+				[ custom(new Sphere([0,0,0],r),{color:skin}),
+				  custom(new Conoid([0,0,0],[r,r,h],[s,s]),{color:skin,hollow:true}),
+				  custom(new Sphere([0,0,h],s*r),{color:skin}),
+				  custom(new Spheroid([-0.8*s*r,0,h+0.1],[0.4,0.6*r,1.2*r]),{color:nail,rot:[0,8]})
+				  ] );
+		}
+
+		// пръст - метод за рисуване
+		Finger.prototype.draw = function()
+		{	
+			pushMatrix();
+			this.bone1.draw();
+			this.bone2.draw();
+			this.bone3.draw();
+			popMatrix();
+		}
+
+		// пръст - свиване
+		Finger.prototype.hook = function(hook)
+		{	
+			this.bone1.rot=[0,hook/2];
+			this.bone2.rot=[0,hook];
+			this.bone3.rot=[0,hook];
+		}
+
+		// длан - конструктор
+		Palm = function(size)
+		{	
+			this.finger1 = new Finger(3);	// палец
+			this.finger2 = new Finger(3);	// показалец
+			this.finger3 = new Finger(3);	// среден
+			this.finger4 = new Finger(3);	// безименен
+			this.finger5 = new Finger(3);	// кутре
+		}
+
+		// длан - метод за рисуване
+		Palm.prototype.draw = function()
+		{	
+			pushMatrix();
+				xRotate(-70);
+				yRotate(70);
+				zRotate(-10);
+				this.finger5.draw(); // кутре
+				translate([0,6,0]);
+				this.finger4.draw(); // безименен
+				translate([0,6,0]);
+				this.finger3.draw(); // среден
+				translate([0,6,0]);
+				this.finger2.draw(); // показалец
+				translate([0,6,0]);
+				this.finger1.draw(); // палец
+			popMatrix();
+		}
+
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// китка
+			palm = new Palm();
+		}
+
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var a = 0.6*sin(time);
+			lookAt([120*cos(a),120*sin(a),30],[0,0,6],[0,0,1]);
+
+			// правене на жеста
+			palm.finger1.hook(45);
+			palm.finger2.hook(45);
+			palm.finger3.hook(45);
+			palm.finger4.hook(45);
+			palm.finger5.hook(45);
+
+			// рисуване на двете ръце - едната е
+			// огледално симетрична на другата
+			pushMatrix();
+				translate([0,-20,0]);
+				palm.draw();
+				translate([0,40,0]);
+				scale([1,-1,1]); // симетрия спрямо Y
+				palm.draw();
+			popMatrix();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Жестове</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

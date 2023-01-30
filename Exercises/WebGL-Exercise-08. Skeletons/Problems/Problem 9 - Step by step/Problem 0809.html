@@ -1,0 +1,98 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Стъпка по стъпка</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	<script src="skeleton.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// ходещ човек
+			man = new Skeleton();
+			man.center = [0,0,2.3];
+			man.legL3.rot=[0,0,-90];
+			man.legR3.rot=[0,0,-90];
+			
+			// пътека от плочки
+			n = 36;
+			plate = [];
+			for (var i=0; i<n; i++)
+			{
+				plate.push( new Cuboid([0,i,0],[6,0.8,0.1]) );
+				plate[i].color = [random(0.3,0.6),random(0.1,0.4),random(0.3,0.6)];
+			}
+		}
+
+		var time = now();
+		var oldTime = time;
+		function now() { return (new Date()).getTime()/1000; }
+		var y=0, iy=0;
+		
+		function drawFrame()
+		{
+			time = now();
+			var dTime = time-oldTime;
+			oldTime = time;
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var a = -time/3;
+			var b = 1;
+			y += 1.67*dTime;
+			lookAt([15*cos(a)*cos(b),y+15*sin(a)*cos(b),15*sin(b)],[0,y,2],[0,0,1]);
+
+			// плъзгаме скелета напред, направете го да ходи
+			man.center[1] = y;
+			man.draw();
+
+			// автоматично изграждане на нови плочки
+			iy = Math.round(y+n/2);
+			plate[iy%n].center[1]=iy;
+			for (var i=0; i<n; i++)
+				plate[i].draw();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Стъпка по стъпка</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

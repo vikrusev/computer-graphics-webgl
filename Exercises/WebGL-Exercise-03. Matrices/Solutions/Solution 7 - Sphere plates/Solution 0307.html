@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Плочки по сфера</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec3 aXYZ;
+		void main ()
+		{
+			gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXYZ,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+	
+	<script>
+		// рисуване на случайна плочка
+		function plate()
+		{
+			yRotate(random(0,360));
+			zRotate(random(0,360));
+			translate([0,0,5]);// сфера с радиус 10
+			useMatrix();
+			gl.drawArrays(gl.LINE_LOOP,0,4);
+			gl.drawArrays(gl.LINE_LOOP,4,4);
+			gl.drawArrays(gl.LINES,8,8);
+			translate([0,0,-5]);
+		}
+
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var proj = perspMatrix(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			// гледане към сферата
+			var view = viewMatrix([25,0,0], [0,0,0], [0,0,1]);
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// паралелепипед 1x1x0.2
+			var data = [ 0.5,-0.5,0.1,	// предна стена
+						 0.5,0.5,0.1,
+						-0.5,0.5,0.1,
+						-0.5,-0.5,0.1,
+						 0.5,-0.5,-0.1, // задна стена
+						 0.5,0.5,-0.1,
+						-0.5,0.5,-0.1,
+						-0.5,-0.5,-0.1,
+						
+						 0.5,-0.5,0.1, // десни хоризонтални ръбове
+						 0.5,-0.5,-0.1,
+						 0.5,0.5,0.1,
+						 0.5,0.5,-0.1,
+						-0.5,0.5,0.1,	// леви хоризонтални ръбове
+						-0.5,0.5,-0.1,
+						-0.5,-0.5,0.1,
+						-0.5,-0.5,-0.1
+						];
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,0,0);
+
+			// оранжеви плочки
+			gl.uniform3f(uColor,1,0.5,0);
+
+			// 200 случайни плочки
+			identity();
+			for( var i=0; i<200; i++ ) plate();
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Плочки по сфера</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,107 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Безтегловност</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	<script src="skeleton.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// спортист
+			man = new Skeleton();
+		}
+
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var a = time/5;
+			lookAt([25*cos(a),25*sin(a),5],[0,0,0],[0,0,1]);
+
+			// безтегловност
+			var t = 1.2*time;
+			
+			var n = 12;
+			for (var i=0; i<n; i++)
+			{
+				t += 10*i;
+				man.rot = [90*sin(0.4*t),90*cos(0.5*t),90*cos(0.2*t),90*sin(0.3*t)];
+				
+				// крака
+				man.legL1.rot = [0,-20+20*sin(0.6*t),-20+50*cos(1.0*t),10*sin(0.3*t)];
+				man.legR1.rot = [0,20-20*cos(0.4*t),-20+50*sin(1.2*t),10*cos(0.4*t)];
+				man.legL2.rot = [0,0,60-60*cos(0.7*t)];
+				man.legR2.rot = [0,0,60-60*sin(0.6*t)];
+				man.legL3.rot = [0,0,-90+40*sin(1.0*t),20*cos(1.2*t)];
+				man.legR3.rot = [0,0,-90+40*cos(1.1*t),20*cos(0.9*t)];
+
+				// тяло
+				man.tor2.rot = [0,20*sin(0.5*t),0,30*sin(0.6*t)];
+				man.tor3.rot = [10*sin(t),0,20*cos(0.3*t)];
+
+				// глава
+				man.head.rot = [0,40*cos(0.2*t),20+20*sin(0.6*t),15*sin(0.8*t)];
+
+				// ръце
+				man.armL1.rot = [0,60+40*sin(1.2*t),30*sin(0.7*t),0];
+				man.armR1.rot = [0,-60+40*cos(0.9*t),30*cos(0.8*t),0];
+				man.armL2.rot = [0,0,60+60*sin(0.9*t)];
+				man.armR2.rot = [0,0,60+60*sin(0.9*t)];
+				man.armL3.rot = [0,20*cos(1.0*t),40*sin(0.8*t),10*sin(0.6*t)];
+				man.armR3.rot = [0,20*cos(1.2*t),40*cos(0.8*t),10*sin(0.7*t)];
+				pushMatrix();
+					zRotate(i/n*360);
+					translate([8,0,cos(i*i*2+time)+sin(-2*i+time)]);
+					man.draw();
+				popMatrix();
+			}
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Безтегловност</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

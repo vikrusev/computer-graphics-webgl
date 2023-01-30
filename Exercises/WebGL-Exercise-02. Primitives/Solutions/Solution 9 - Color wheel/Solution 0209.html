@@ -1,0 +1,109 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Колело на цветовете</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script>
+		function colorWheel(a)
+		{
+			var v;
+			var c = [0,60,120,180,240,300,360];
+			if (a>=360) a-=360;
+			// червено
+			v = 0.5-0.5*Math.cos((a-c[0])/(c[1]-c[0])*Math.PI);
+			if (c[0]<=a && a<c[1]) return {r:1,g:0,b:v};
+			// магента
+			v = 0.5+0.5*Math.cos((a-c[1])/(c[2]-c[1])*Math.PI);
+			if (c[1]<=a && a<c[2]) return {r:v,g:0,b:1};
+			// синьо
+			v = 0.5-0.5*Math.cos((a-c[2])/(c[3]-c[2])*Math.PI);
+			if (c[2]<=a && a<c[3]) return {r:0,g:v,b:1};
+			// цианово
+			v = 0.5+0.5*Math.cos((a-c[3])/(c[4]-c[3])*Math.PI);
+			if (c[3]<=a && a<c[4]) return {r:0,g:1,b:v};
+			// зелено
+			v = 0.5-0.5*Math.cos((a-c[4])/(c[5]-c[4])*Math.PI);
+			if (c[4]<=a && a<c[5]) return {r:v,g:1,b:0};
+			// жълто
+			v = 0.5+0.5*Math.cos((a-c[5])/(c[6]-c[5])*Math.PI);
+			if (c[5]<=a && a<c[6]) return {r:1,g:v,b:0};
+			// червено
+			return {r:0,g:0,b:0};
+		}
+
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			aRGB = gl.getAttribLocation(glprog,"aRGB");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// брой сегменти n
+			var n = 60;
+			
+			// създаване на ветрило
+			var data = [0,0,1,1,1];
+			for(var i=0; i<n+1; i++)
+			{
+				var a = 2*Math.PI*i/n;
+				var x = 0.9*Math.cos(a);
+				var y = 0.9*Math.sin(a);
+				data.push(x*2/3,y);
+				var c = colorWheel(360*i/n);
+				data.push(c.r,c.g,c.b);
+			}
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			// рисуване
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,5*FLOATS,0);
+
+			gl.enableVertexAttribArray(aRGB);
+			gl.vertexAttribPointer(aRGB,3,gl.FLOAT,false,5*FLOATS,2*FLOATS);
+
+			gl.drawArrays(gl.TRIANGLE_FAN,0,n+2);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Колело на цветовете</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

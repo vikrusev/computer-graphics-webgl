@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Падащи понички</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,0.9,0.9,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+
+			// създаване на поничките
+			donut = [];
+			n = 1;
+			for (var i=0; i<n; i++)
+			{
+				donut[i] = new Torus([0,0,0],1,4,1);
+				donut[i].rot = [random(0,360),random(0,360),random(0,360),random(0,360)];
+			}
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			var oldTime = time; 
+			time = now();
+			var dT = time-oldTime;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([40*cos(time),40*sin(time),0],[0,0,0],[0,0,1]);
+
+			// рисуване на поничките
+			for (var i=0; i<n; i++)
+				donut[i].draw();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Падащи понички</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

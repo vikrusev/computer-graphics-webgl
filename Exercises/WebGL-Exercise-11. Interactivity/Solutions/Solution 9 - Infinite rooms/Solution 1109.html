@@ -1,0 +1,180 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Безкрайни стаи</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+
+			canvas.addEventListener('mousedown',mouseDown,false);
+			
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.85,0.9,0.95,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			gl.uniform1i(uTexUnit, 0);
+			gl.activeTexture(gl.TEXTURE0);
+
+			// текстури
+			texStone = loadTexture('stone.jpg');
+			texGrass = loadTexture('grass.jpg');
+			texMetal = loadTexture('metalbox.jpg');
+
+			var mat1 = texIdentity(); texScale(mat1,[5,1]);
+			var mat2 = texIdentity(); texScale(mat2,[2,1]);
+			var mat3 = texIdentity(); texScale(mat3,[8,8]);
+			var mat4 = texIdentity(); texScale(mat4,[1,1]);
+			
+			// стилове
+			var wall1 = {color: [1,1,1], texture: texStone,	texMatrix: mat1};
+			var wall2 = {color: [1,1,1], texture: texStone,	texMatrix: mat2};
+			var ground = {color: [1,1,1], texture: texGrass,	texMatrix: mat3};
+			var gate = {color: [1,1,1], texture: texMetal,	texMatrix: mat4};
+			
+			// земя
+			obj = [];
+			obj.push(custom(new Cuboid([0,0,-11],[400,400,2]),ground));
+
+			// околни стени (за всяка стена: горна част,
+			// лява част, дясна част, централна врата)
+			obj.push(custom(new Cuboid([0,-50,20],[100,4,20]),wall1));
+			obj.push(custom(new Cuboid([+30,-50,0],[40,4,20]),wall2));
+			obj.push(custom(new Cuboid([-30,-50,0],[40,4,20]),wall2));
+			obj.push(custom(new Cuboid([0,-50,0],[20,1,20]),gate));
+
+			obj.push(custom(new Cuboid([0,+50,20],[100,4,20]),wall1));
+			obj.push(custom(new Cuboid([+30,+50,0],[40,4,20]),wall2));
+			obj.push(custom(new Cuboid([-30,+50,0],[40,4,20]),wall2));
+			obj.push(custom(new Cuboid([0,+50,0],[20,1,20]),gate));
+
+			obj.push(custom(new Cuboid([-50,0,20],[4,100,20]),wall1));
+			obj.push(custom(new Cuboid([-50,+30,0],[4,40,20]),wall2));
+			obj.push(custom(new Cuboid([-50,-30,0],[4,40,20]),wall2));
+			obj.push(custom(new Cuboid([-50,0,0],[1,20,20]),gate));
+
+			obj.push(custom(new Cuboid([+50,0,20],[4,100,20]),wall1));
+			obj.push(custom(new Cuboid([+50,+30,0],[4,40,20]),wall2));
+			obj.push(custom(new Cuboid([+50,-30,0],[4,40,20]),wall2));
+			obj.push(custom(new Cuboid([+50,0,0],[1,20,20]),gate));
+
+			// далечна стена, която се вижда при отваряща се врата
+			obj.push(custom(new Cuboid([-150,0,20],[4,100,20]),wall1));
+			obj.push(custom(new Cuboid([-150,+30,0],[4,40,20]),wall2));
+			obj.push(custom(new Cuboid([-150,-30,0],[4,40,20]),wall2));
+			obj.push(custom(new Cuboid([-150,0,0],[1,20,20]),gate));
+		}
+
+		var viewA = 0;
+		var targetA = 0;
+		var gateZ = 0;
+		var targetZ = 0;
+		var animTime = -1;
+		
+		function drawFrame()
+		{
+			var newTime = now();
+			var dT = newTime-time;
+			time = newTime;
+			
+			// гледна точка - зависи от завъртяността
+			// и от нивото на вдигнатост на вратата
+			lookAt([40*cos(viewA)-gateZ*100/30,40*sin(viewA),3],[-gateZ*100/30,0,0],[0,0,1]);
+
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			// обръщане наляво или надясно
+			if (viewA<targetA)
+			{
+				viewA += 2*dT;
+				if (viewA>targetA) viewA = targetA;
+			} else
+			if (viewA>targetA)
+			{
+				viewA -= 2*dT;
+				if (viewA<targetA) viewA = targetA;
+			}
+			else
+			{
+				viewA = 0;
+				targetA = 0;
+			}
+			
+			// отваряне на врата (и ходене напред)
+			if (targetZ>gateZ)
+			{
+				gateZ += 20*dT;
+			}
+			else
+			{
+				targetZ = 0;
+				gateZ = 0;
+			}
+			obj[12].center[2] = gateZ;
+			
+			// рисуване на обектите
+			gl.uniform3f(uAmbientColor,1,1,1);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			obj[0].draw();
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			for (var i=1; i<obj.length; i++)
+				obj[i].draw();
+				
+			requestAnimationFrame(drawFrame);
+		}
+		
+		function mouseDown(event)
+		{
+			var x = getX(event);
+			if (x<-130)
+			{	// искаме въртене наляво
+				targetA = viewA+PI/2;
+				return;
+			}
+			if (x>130)
+			{	// искаме въртене надясно
+				targetA = viewA-PI/2;
+				return;
+			}
+			// искаме движение напред
+			targetZ = 30;
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h1>Безкрайни стаи</h1>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" border="1">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Броеница</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec2 aXZ;
+		void main ()
+		{
+			gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXZ.x,0,aXZ.y,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+	
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXZ = gl.getAttribLocation(glprog,"aXZ");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var proj = perspMatrix(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			var view = viewMatrix([30,0,15], [0,0,-2], [0,0,1]);
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// дефиниране на върхове на окръжност
+			var data = [ ];
+			for( var i=0; i<60; i++ ) data.push(Math.cos(radians(6*i)),Math.sin(radians(6*i)));
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXZ);
+			gl.vertexAttribPointer(aXZ,2,gl.FLOAT,false,0,0);
+
+			gl.uniform3f(uColor,1/4,0,3/4);
+
+			identity();
+			
+			var n = 200; // брой сечения
+			var k = 11;  // брой възли
+			
+			// рисуване на броеница с k възела
+			for (var i=0; i<n; i++)
+			{
+				// радиусът на един пръстен е синусоида от 0.2 до 1.8
+				var s = 1+0.8*Math.sin(radians(360/n*k*i));
+				
+				zRotate(360/n);			// ориентация на пръстен
+				translate([10,0,0]);	// положение на пръстен
+				scale([s,1,s]);			// размер на пръстен
+				useMatrix();
+				gl.drawArrays(gl.LINE_LOOP,0,60);
+				scale([1/s,1,1/s]);
+				translate([-10,0,0]);
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Броеница</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

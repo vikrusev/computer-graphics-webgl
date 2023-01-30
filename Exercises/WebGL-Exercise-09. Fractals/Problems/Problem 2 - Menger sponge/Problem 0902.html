@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Гъба на Менгер</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		// гъба на Менгер - конструктор
+		function MengerSponge(levels)
+		{
+			this.cube = new Cube([0,0,0],1);
+		}
+
+		// гъба на Менгер - рисуване
+		MengerSponge.prototype.draw = function()
+		{
+			this.cube.draw();
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,1/3,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform3f(uAmbientColor,0,1/2,0);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+			
+			// създаване на гъбата
+			menger = new MengerSponge(3);
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([4*cos(time/15),4*sin(time/15),2*sin(time*4/15+PI/4)],[0,0,0],[0,0,1]);
+
+			// рисуване на гъбата
+			menger.draw()
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Гъба на Менгер</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

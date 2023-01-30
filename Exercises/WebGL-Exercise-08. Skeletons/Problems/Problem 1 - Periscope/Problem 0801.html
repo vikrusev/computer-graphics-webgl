@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Перископ</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.7,0.7,0.7,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// дефиниране на стойка
+			base1 = new Cylinder([0,0,0],2,8);
+			base1.color = [0.4,0.4,0.4];
+			base2 = new Sphere([0,0,base1.height],base1.size);
+			base2.color = base1.color;
+			base3 = new Cylinder([0,0,base1.height],3/4,40);
+			base3.color = [0.8,0.8,0.8];
+			base3.rot = [0,90,0];
+			
+			// дефиниране на подвижен обект
+			ball1 = new Sphere([0,0,base1.height],2);
+			ball1.color = [0.3,0.6,0.6];
+			ball2 = new Cylinder(ball1.center,2,4);
+			ball2.color = ball1.color;
+			ball2.rot = [0,0,0];
+		}
+
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([65*cos(time/5),65*sin(time/5),15],[0,0,6],[0,0,1]);
+
+			// рисуване на стойката
+			pushMatrix();
+				translate([0,-20,0]);
+				base1.draw();
+				base2.draw();
+				base3.draw();
+				translate([0,+40,0]);
+				base1.draw();
+				base2.draw();
+			popMatrix();
+				
+			// рисуване на подвижния обект
+			ball1.draw();
+			ball2.draw();
+
+			// да се добави въртене на подвижния обект подобно
+			// на перископ и то докато се плъзга напред-назад
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Перископ</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

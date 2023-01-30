@@ -1,0 +1,163 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Коноидна верига</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		// пресечен коноид - конструктор
+		Conoid = function(center,size,ratio)
+		{
+			this.center = center;
+			this.size = size;
+			this.n = CONE_SIDES;
+			this.color = [1,0.75,0];
+			this.offset = undefined;
+			this.hollow = false;
+			this.rot = undefined;
+
+			// заради ratio пресеченият коноид няма канонична форма
+			var a = 0, dA = 2*Math.PI/this.n;
+			// генериране на долната основа като ветрило
+			var data = [0,0,0, 0,0,-1];
+			for (var i=0; i<=this.n; i++)
+			{ 
+				data.push(Math.cos(a),Math.sin(a),0,0,0,-1);
+				a += dA;
+			}
+			// генериране на горната основа като ветрило,
+			// но със съответното умножение с ratio
+			data.push(0,0,1, 0,0,1);
+			for (var i=0; i<=this.n; i++)
+			{ 
+				data.push(ratio[0]*Math.cos(a),ratio[1]*Math.sin(a),1,0,0,1);
+				a += dA;
+			}
+			// генериране на околните стени
+			a = 0;
+			var nZ = Math.cos(Math.PI/this.n); // височина на нормалния вектор
+			for (var i=0; i<=this.n; i++)
+			{ 
+				var N = [Math.cos(a),Math.sin(a)]; // нормала към един отвес
+				var M = [Math.cos(a+dA),Math.sin(a+dA)]; // нормала към следващия отвес
+				data.push(ratio[0]*Math.cos(a),ratio[1]*Math.sin(a),1,N[0],N[1],0);
+				data.push(Math.cos(a),Math.sin(a),0,N[0],N[1],0);
+				data.push(Math.cos(a+dA),Math.sin(a+dA),0,M[0],M[1],0);
+				data.push(ratio[0]*Math.cos(a+dA),ratio[1]*Math.sin(a+dA),1,M[0],M[1],0);
+				data.push(Math.cos(a+dA),Math.sin(a+dA),0,M[0],M[1],0);
+				data.push(ratio[0]*Math.cos(a),ratio[1]*Math.sin(a),1,N[0],N[1],0);
+				a += dA;
+			}
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			this.buf = buf;
+		}
+
+		// // пресечен коноид - рисуване
+		Conoid.prototype.draw = function()
+		{
+			pushMatrix();
+			gl.vertexAttrib3fv(aColor,this.color);
+			translate(this.center);
+			if (this.rot)
+			{
+				if (this.rot[0]) zRotate(this.rot[0]);	// хоризонтален ъгъл
+				if (this.rot[1]) yRotate(this.rot[1]);	// вертикален ъгъл
+				if (this.rot[2]) xRotate(this.rot[1]);	// вертикален ъгъл
+				if (this.rot[3]) zRotate(this.rot[2]);	// осев ъгъл
+			}
+			scale(this.size);
+			if (this.offset) translate(this.offset); // и отместването
+			useMatrix();
+			
+				// рисуване на пресечен коноид
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.enableVertexAttribArray(aXYZ);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+				gl.enableVertexAttribArray(aNormal);
+				gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+				if (!this.hollow)
+				{
+					gl.drawArrays(gl.TRIANGLE_FAN,0,this.n+2);
+					gl.drawArrays(gl.TRIANGLE_FAN,this.n+2,this.n+2);
+				}
+				gl.drawArrays(gl.TRIANGLES,2*this.n+4,6*this.n);
+
+			popMatrix();
+		}
+
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.4,0.4,0.4);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// възела на коноидна верига
+			CONE_SIDES = 64;
+			var k = 8/20;
+			node = new Conoid([0,0,-20],[20,20*k,40],[k,1/k]);
+		}
+
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([120*cos(time/3),120*sin(time/3),50+50*sin(time/2)],[0,0,0],[0,0,1]);
+			
+			
+			// рисуване на веригата
+			var n = 7;
+			for (var i=0; i<n; i++)
+			{
+			pushMatrix();
+				translate([28*(i-(n-1)/2),0,0]);
+				zRotate(-100*time+90*i);
+				node.draw();
+			popMatrix();
+			}
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Коноидна верига</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

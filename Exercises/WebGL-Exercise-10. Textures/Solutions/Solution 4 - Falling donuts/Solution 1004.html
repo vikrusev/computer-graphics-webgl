@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Падащи понички</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,0.9,0.9,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+
+			// зареждане на текстура
+			texSweet = loadTexture('donut.jpg');
+			
+			// създаване на понички
+			donut = [];
+			n = 20;
+			for (var i=0; i<n; i++)
+			{
+				donut[i] = new Torus([random(-50,20),random(-20,20),50+10*i],1,4,2.5);
+				donut[i].color = [1,1,1];
+				donut[i].texture = texSweet;
+				donut[i].rot = [random(0,360),random(0,360),random(0,360),random(0,360)];
+				donut[i].dRot = [random(1,2),random(1,2),random(1,2),random(1,2)];
+			}
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			var oldTime = time; 
+			time = now();
+			var dT = time-oldTime;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([60,0,0],[0,0,0],[0,0,1]);
+
+			// падане на поничките
+			for (var i=0; i<n; i++)
+			{
+				donut[i].center[2] -= 10*dT;
+				for (var j=0; j<4; j++)
+					donut[i].rot[j] += 20*dT*donut[i].dRot[j];
+				if (donut[i].center[2]<-40)
+				{	// паднала е извън екрана, слагаме я пак отгоре
+					donut[i].center = [random(-50,20),random(-20,20),50];
+					donut[i].rot = [random(0,360),random(0,360),random(0,360),random(0,360)];
+					donut[i].dRot = [random(1,2),random(1,2),random(1,2),random(1,2)];
+				}
+			}
+			
+			// рисуване на поничките
+			for (var i=0; i<n; i++)
+				donut[i].draw();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Падащи понички</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

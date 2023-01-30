@@ -1,0 +1,197 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Метални шипове</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;		// координати на връх
+		attribute vec3 aColor;		// цвят на връх
+		attribute vec3 aNormal;		// нормален вектор на връх
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			// околна светлина
+			vColor = aColor;
+			if (uUseAmbient)
+				vColor *= uAmbientColor;
+			
+			// дифузно отражение
+			vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		// преместено тук от другия шейдър
+		uniform highp vec3 uLightDir;
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+		uniform float uShininess;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+			vec3 specularColor = vec3(0);
+			
+			// огледално отражение
+			if (uUseSpecular)
+			{
+				vec3 light = normalize(-uLightDir);
+				
+				// намиране на отразения лъч
+				vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+
+				// в локалната координатна система "окото" на гледащия е в (0,0,0)
+				// а вектора от точката до "окото" е pos-(0,0,0) = pos
+				vec3 viewDir = normalize(vPos);
+
+				// готови сме да сметнем лъскавината
+				float cosa = max(dot(reflectedLight,viewDir),0.0);
+				specularColor = uSpecularColor*pow(cosa,uShininess);
+			}
+
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			
+			uSpecularColor = gl.getUniformLocation(glprog,"uSpecularColor");
+			uUseSpecular = gl.getUniformLocation(glprog,"uUseSpecular");
+
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+			uShininess = gl.getUniformLocation(glprog,"uShininess");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			// настройка на цветове и светлини
+			gl.vertexAttrib3f(aColor,0.5,0.5,0.5);
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,0.4,0.7,1);
+			gl.uniform1f(uShininess,2);
+
+			gl.uniform3f(uLightDir,0,0,-1);
+			
+			gl.uniform1i(uUseAmbient,true);
+			gl.uniform1i(uUseDiffuse,true);
+			gl.uniform1i(uUseSpecular,true);
+
+			// шип, един единствен
+			CONE_SIDES = 20;
+			p1 = new Cone([-3,0,1],0.1,0.2);
+			p1.color = [0.5,0.5,0.53];
+			// ръкав, също един
+			p2 = new Cylinder([0,0,0],1,8);
+			p2.color = [0.3,0,0];
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([5*Math.cos(frame/100),5*Math.sin(frame/100),3+1*Math.sin(frame/50)], [0,0,0], [0,1,1+Math.cos(frame/50)]);
+
+			// рисуване на 300 шипа
+			gl.uniform1i(uUseSpecular,true);
+			pushMatrix();
+			for (i=0; i<300; i++)
+			{
+				p1.draw();
+				xRotate(20.5);
+				translate([1/50,0,0]);
+			}
+			popMatrix();
+
+			// рисуване на ръкав
+			gl.uniform1i(uUseSpecular,false);
+			pushMatrix();
+				translate([-4,0,0]);
+				yRotate(90);
+				p2.draw();
+			popMatrix();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Метални шипове</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

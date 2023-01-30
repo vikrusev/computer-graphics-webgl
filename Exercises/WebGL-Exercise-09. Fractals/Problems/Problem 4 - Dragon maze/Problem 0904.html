@@ -1,0 +1,137 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Драконов лабиринт</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		var data = [0,0,0];	// буфер с върхове 
+		var mat = unitMatrix(); // работна матрица
+
+		// стъпка напред
+		function F(d)
+		{
+			mat[12] += mat[0]*d;
+			mat[13] += mat[1]*d;
+			mat[14] += mat[2]*d;
+			data.push(mat[12],mat[13],mat[14]);
+		}
+
+		// завой надясно
+		function R(a)
+		{
+			a = radians(a);
+			var s = Math.sin(a);
+			var c = Math.cos(a);
+			
+			a = mat[0]*s+mat[4]*c;
+			mat[0]=mat[0]*c-mat[4]*s;
+			mat[4]=a;
+			
+			a = mat[1]*s+mat[5]*c;
+			mat[1]=mat[1]*c-mat[5]*s;
+			mat[5]=a;
+			
+			a = mat[2]*s+mat[6]*c;
+			mat[2]=mat[2]*c-mat[6]*s;
+			mat[6]=a;
+		}
+
+
+		// драконов лабиринт - конструктор
+		function MazeDragon()
+		{
+			for (var i=1; i<2000; i++)
+			{
+				F(1);
+				R(((((i&-i)<<1)&i)==0)?-90:90);
+			}
+
+			this.buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			this.n = data.length/3;
+			this.center = [0,0,0];
+			this.size = 1;
+		}
+		
+		// драконов лабиринт - рисуване
+		MazeDragon.prototype.draw = function()
+		{
+			pushMatrix();
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.enableVertexAttribArray(aXYZ);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,3*FLOATS,0*FLOATS);
+				gl.drawArrays(gl.LINE_STRIP,0,this.n);
+			popMatrix();
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			// създаване на драконов лабиринт
+			maze = new MazeDragon();
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			// движение на гледната точка
+			lookAt([50*cos(time/5),50*sin(time/5),10],[0,0,0],[0,0,1]);
+
+			// рисуване на 4 копия на драконовата крива
+			pushMatrix();
+				for (var i=0; i<4; i++)
+				{
+					gl.vertexAttrib3fv(aColor,[sin(i),cos(i),1+sin(2.5*i*i)]);
+					zRotate(90);
+					maze.draw();
+				}
+			popMatrix();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Драконов лабиринт</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

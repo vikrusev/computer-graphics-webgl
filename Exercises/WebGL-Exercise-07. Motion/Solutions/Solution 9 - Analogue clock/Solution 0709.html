@@ -1,0 +1,236 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Аналогов часовник</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		uniform mat4 uNormalMatrix; // матрица за нормалните вектори
+		uniform bool uUseNormalMatrix; // дали матрицата се подава отвън
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+		
+		uniform bool uUseReflectance;
+		
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+			mat4 nMatrix = uUseNormalMatrix?uNormalMatrix:mvMatrix;
+			
+			// околна светлина
+			if (uUseAmbient)
+				vColor = uAmbientColor*aColor;
+			else
+				vColor = aColor;
+
+			// дифузно отражение
+			vec3 light = normalize(-uLightDir);
+			vec3 normal = vec3(normalize(nMatrix*vec4(aNormal,0)));
+			if (uUseDiffuse)
+			{
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+			}
+
+			// огледално отражение
+			if (uUseReflectance)
+			{
+				vec3 reflectedLight = normalize(reflect(light,normal));
+				vec3 viewDir = normalize( pos.xyz/pos.w );
+				float cosa = max(dot(reflectedLight,viewDir),0.0);
+				vColor += vec3(1,1,1)*pow(cosa,3.0);
+			}
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vColor;
+		void main( )
+		{
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			uNormalMatrix = gl.getUniformLocation(glprog,"uNormalMatrix");
+			uUseNormalMatrix = gl.getUniformLocation(glprog,"uUseNormalMatrix");
+			
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uUseReflectance = gl.getUniformLocation(glprog,"uUseReflectance");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.5,0.5,0.5,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			
+			// създаване на циферблата
+			SPHERE_SIDES = 80;
+			clockFrame = new Spheroid([0,0,-100],[50,50,50]);
+			clockFrame.color = [0.25,0.2,0.2];
+			clockFace = new Sphere([0,0,-30],28,10);
+			clockFace.color = [1,1,1];
+			CYLINDER_SIDES = 8;
+			// малките кръгчета за минутните отметки
+			clockMarker = new Cylinder([20,0,0],0.3,0.3,1);
+			clockMarker.color = [0,0,0];
+			// лентичките за часовите отметки
+			clockMarker2 = new Cuboid([19.5,0,0],[3,1,0.1]);
+			clockMarker2.color = [0,0,0];
+			
+			// създаване на стрелките
+			SPHERE_SIDES = 32;
+			handCenter = new Sphere([0,0,0],3);
+			handCenter.color = [0.4,0.4,0.4];
+			// секундна стрелка
+			handSec = new Cuboid([7,0,2.5],[24,0.3,0.1]);
+			handSec.color = [1,0,0];
+			// минутна стрелка
+			handMin = new Cuboid([8.5,0,2.5],[17,0.6,0.1]);
+			handMin.color = [0,0,0];
+			// часова стрелка
+			handHor = new Cuboid([7,0,2.5],[14,1.2,0.1]);
+			handHor.color = [0,0,0];
+		}
+
+		
+		var frame = 0;
+		var vibe = 0;	// амплитуда на вибрация на секундната стрелка
+		var vibeT = 0;	// локално време на секундната стрелка
+		var lastSec = 0;// последна отчетена секунда
+		
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([0,0,100], [0,0,0], [1,0,0]);
+		
+			// рисуване на стрелките
+			var date = new Date();
+			
+			// ако е настъпила нова секунда - започни вибрация
+			if (lastSec!=date.getSeconds())
+			{
+				vibe = 2;
+				vibeT = 0;
+				lastSec = date.getSeconds();
+			}
+			
+			// рисуване на центъра
+			gl.uniform1i(uUseReflectance,true);
+			handCenter.draw();
+			// рисуване на секундната стрелка
+			gl.uniform1i(uUseReflectance,false);
+			pushMatrix();
+				zRotate(360/60*date.getSeconds()+vibe*sin(vibeT));
+				handSec.draw();
+			popMatrix();
+			// рисуване на минутната стрелка
+			pushMatrix();
+				zRotate(360/60*date.getMinutes()+360/60/60*date.getSeconds());
+				handMin.draw();
+			popMatrix();
+			// рисуване на часовата стрелка
+			pushMatrix();
+				zRotate(360/12*date.getHours()+360/12/60*date.getMinutes());
+				handHor.draw();
+			popMatrix();
+			
+			// рисуване на циферблата
+			// рамка и лицева част
+			gl.uniform1i(uUseReflectance,true);
+			clockFrame.draw();
+			clockFace.draw();
+			// отметки за минутите
+			gl.uniform1i(uUseReflectance,false);
+			pushMatrix();
+			for (var i=0; i<60; i++)
+			{
+				clockMarker.draw();
+				zRotate(360/60);
+			}
+			// отметки за часовете
+			for (var i=0; i<12; i++)
+			{
+				clockMarker2.draw();
+				zRotate(360/12);
+			}
+			popMatrix();
+			
+			// непрекъснато затихваща вибрация
+			vibe *= 0.85;
+			vibeT ++;
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h2>Аналогов часовник</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,118 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Пръст</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	<script src="skeleton.js"></script>
+	
+	<script>
+		// пръст - конструктор
+		var skin=[1,0.87,0.77];
+		var nail=[1,0,0];
+		Finger = function(size)
+		{	
+			var s = 0.8;
+			var r = size;
+			var h = 3*size;
+			this.bone1=new Bone(h,
+				[ custom(new Sphere([0,0,0],r),{color:skin}),
+				  custom(new Conoid([0,0,0],[r,r,h],[s,s]),{color:skin,hollow:true}) ] );
+			r *= s;
+			h *= s;
+			this.bone2=new Bone(h,
+				[ custom(new Sphere([0,0,0],r),{color:skin}),
+				  custom(new Conoid([0,0,0],[r,r,h],[s,s]),{color:skin,hollow:true}) ] );
+			r *= s;
+			h *= s;
+			this.bone3=new Bone(h,
+				[ custom(new Sphere([0,0,0],r),{color:skin}),
+				  custom(new Conoid([0,0,0],[r,r,h],[s,s]),{color:skin,hollow:true}),
+				  custom(new Sphere([0,0,h],s*r),{color:skin}),
+				  custom(new Spheroid([-0.8*s*r,0,h+0.1],[0.4,0.6*r,1.2*r]),{color:nail,rot:[0,8]})
+				  ] );
+		}
+
+		// пръст - метод за рисуване
+		Finger.prototype.draw = function()
+		{	
+			pushMatrix();
+			this.bone1.draw();
+			this.bone2.draw();
+			this.bone3.draw();
+			popMatrix();
+		}
+
+		// пръст - свиване
+		Finger.prototype.hook = function(hook)
+		{	
+			this.bone1.rot=[0,hook/2];
+			this.bone2.rot=[0,hook];
+			this.bone3.rot=[0,hook];
+		}
+
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// пръст
+			finger = new Finger(3);
+		}
+
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([60*cos(time/3),60*sin(time/3),30],[0,0,8],[0,0,1]);
+
+			// свиване на пръста
+			finger.hook(45+40*sin(time));
+
+			// рисуване на пръста
+			finger.draw();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Пръст</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

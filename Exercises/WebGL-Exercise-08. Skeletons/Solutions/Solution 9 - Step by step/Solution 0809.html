@@ -1,0 +1,146 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Стъпка по стъпка</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	<script src="skeleton.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// ходещ човек
+			man = new Skeleton();
+			man.center = [0,0,0];
+			oldPosL = [0,0,0];
+			oldPosR = [0,0,0];
+			
+			// пътека от плочки
+			n = 36;
+			plate = [];
+			for (var i=0; i<n; i++)
+			{
+				plate.push( new Cuboid([0,i,0],[6,0.8,0.1]) );
+				plate[i].color = [random(0.3,0.6),random(0.1,0.4),random(0.3,0.6)];
+			}
+		}
+
+		var time = now();
+		var oldTime = time;
+		function now() { return (new Date()).getTime()/1000; }
+		var y=0, iy=0;
+		
+		function drawFrame()
+		{
+			time = now();
+			var dTime = time-oldTime;
+			oldTime = time;
+
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var a = -time/3;
+			var b = 1;
+			y += 1.67*dTime;
+			lookAt([15*cos(a)*cos(b),y+15*sin(a)*cos(b),15*sin(b)],[0,y,2],[0,0,1]);
+
+			// автоматично изграждане на нови плочки
+			iy = Math.round(y+n/2);
+			plate[iy%n].center[1]=iy;
+
+			// помощни числа
+			var t = time*2.5;
+			var s = sin(t);
+			var c = sin(t*2);
+			
+			// крака
+			man.legL1.rot = [0,-5,-10+20*s];
+			man.legR1.rot = [0,+5,-10-20*s];
+			man.legL2.rot = [0,0,30+20*s];
+			man.legR2.rot = [0,0,30-20*s];
+			man.legL3.rot = [0,0,-75-(1-s)*(-10+20*s)-(1-s)*(40+20*s),0];
+			man.legR3.rot = [0,0,-75-(1+s)*(-10-20*s)-(1+s)*(40-20*s),0];
+
+			// тяло и глава
+			man.tor2.rot = [0,0,-5,10*s];
+			man.tor3.rot = [0,0,10,10*s];
+			man.head.rot = [0,0,3*c,-25*s];
+
+			// ръце
+			man.armL1.rot = [0,0,30*s,0];
+			man.armR1.rot = [0,0,-30*s,0];
+			man.armL2.rot = [0,0,20+20*s];
+			man.armR2.rot = [0,0,20-20*s];
+			man.armL3.rot = [0,0,-30+30*s];
+			man.armR3.rot = [0,0,-30-30*s];
+
+			// временно рисуване, за да генерираме posL и posR
+			man.draw();
+
+			// според фазата на крачката компенсираме
+			// движението според левия или десния крак
+			if (cos(t)>0)
+			{
+				man.center[1] += oldPosL[1]-man.posL[1];
+				man.center[2] = oldPosL[2]-man.posL[2]+2.2;
+			}
+			else
+			{
+				man.center[1] += oldPosR[1]-man.posR[1];
+				man.center[2] = oldPosR[2]-man.posR[2]+2.2;
+			}
+
+			// изчистваме екрана и рисуваме наново,
+			// вече с правилно отместване
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			man.draw();
+			for (var i=0; i<n; i++)
+				plate[i].draw();
+			
+			// запомняме отместването, за да може следващия цикъл
+			// да можем да пресметнем новото отместване
+			oldPosL = man.posL;
+			oldPosR = man.posR;
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Стъпка по стъпка</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

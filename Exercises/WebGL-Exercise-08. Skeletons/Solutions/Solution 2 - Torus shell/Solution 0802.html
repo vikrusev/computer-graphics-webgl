@@ -1,0 +1,130 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Обвивка на тор</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.7,0.7,0.7,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// дефиниране на стойка
+			base1 = new Cylinder([0,0,0],2,8);
+			base1.color = [0.4,0.4,0.4];
+			base2 = new Sphere([0,0,base1.height],base1.size);
+			base2.color = base1.color;
+			base3 = new Cylinder([0,0,base1.height],3/4,20);
+			base3.color = [0.8,0.8,0.8];
+			base3.rot = [0,90,0];
+			base4 = new Cylinder([0,0,base1.height],3/4,8);
+			base4.color = base3.color;
+			
+			// дефиниране на подвижен обект
+			ball1 = new Sphere([0,0,0],2);
+			ball1.color = [0.3,0.6,0.6];
+			ball2 = new Cone([0,0,0],2,7);
+			ball2.color = ball1.color;
+			
+			// предварително създаване на елементите на
+			// обвивката, изместени са извън видимото поле
+			n = 49;
+			shell = [];
+			for (var i=0; i<n; i++)
+			{
+				shell[i] = new Cylinder([0,0,1000],ball2.height,1);
+				shell[i].hollow = true;
+				shell[i].rot = [90,90,0];
+			}
+		}
+
+		var frame = 0;
+		var alpha = 0;
+		var beta = 0;
+		
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+			
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var a = 0.6+0.5*sin(time);
+			lookAt([80*cos(a),0,140*sin(a)+7],[0,0,7],[cos(a+1),0,sin(a+1)]);
+
+			alpha = frame/4;
+			beta = frame*5;
+
+			// въртене на стойката
+			base3.rot = [alpha,90,0];
+			base4.rot = [-90,90,0];
+			ball2.rot = [-23.58,beta,0];
+				
+			// рисуване на стойката
+			pushMatrix();
+				base1.draw();
+				base2.draw();
+				base3.draw();
+				zRotate(alpha);
+				translate([0,base3.height,0]);
+				base2.draw();
+				base4.draw();
+				translate([-base4.height,0,base1.height]);
+				ball1.draw();
+				ball2.draw();
+				xRotate(beta);
+
+				// извличане на координатите на центъра на елемент
+				// от обвивката директно от матрицата на трансформация
+				var i = Math.round(frame/30)%n;
+				shell[i].center = [glmat[12],glmat[13],glmat[14]];
+				shell[i].rot = [alpha+90-23.58,90,0];
+			popMatrix();
+
+			// рисуване на обвивката
+			for (i=0; i<n; i++) shell[i].draw();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Обвивка на тор</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

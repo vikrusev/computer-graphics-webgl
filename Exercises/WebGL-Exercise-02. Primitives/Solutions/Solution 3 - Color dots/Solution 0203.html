@@ -1,0 +1,71 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Цветни точки</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		attribute float aGreen;
+		varying float vGreen;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 4.0;
+			vGreen = aGreen;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying float vGreen;
+		void main( )
+		{
+			gl_FragColor = vec4(1,vGreen,0,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			aGreen = gl.getAttribLocation(glprog,"aGreen");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var n = 100000;
+			var data = [ ];
+			for(var i=0; i<n; i++) data.push(random(-1,1),random(-1,1),random(0,1));
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,3*FLOATS,0);
+
+			gl.enableVertexAttribArray(aGreen);
+			gl.vertexAttribPointer(aGreen,1,gl.FLOAT,false,3*FLOATS,2*FLOATS);
+
+			gl.drawArrays(gl.POINTS,0,n);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Цветни точки</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

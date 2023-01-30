@@ -1,0 +1,90 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Елипси</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec2 aXY;
+		void main ()
+		{
+			gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXY,0,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+	
+	<script>
+		// рисуване на елипса по два радиуса
+		function ellipse(sx,sy)
+		{
+			identity();
+			zRotate(45);
+			scale([sx,sy,0]);
+			useMatrix();
+			gl.drawArrays(gl.LINE_LOOP,0,360);
+		}
+
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var proj = orthoMatrix(gl.canvas.width,gl.canvas.height,1,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			var view = viewMatrix([0,0,100], [0,0,0], [0,1,0]);
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// дефиниране на върхове на окръжност
+			var data = [ ];
+			for( var i=0; i<360; i++ ) data.push(Math.cos(radians(i)),Math.sin(radians(i)));
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+
+			// рисуване на цветни елипси
+			for (var i=0; i<=250; i+=10)
+			{
+				gl.uniform3f(uColor,i/250,0,1-i/250);
+				ellipse(i,250-i);
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Елипси</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

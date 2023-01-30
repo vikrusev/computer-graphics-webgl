@@ -1,0 +1,176 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Рицарски катинар</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		// базисни функции
+		var B = [];
+		B[0] = function (t) { return (1-t)*(1-t)*(1-t); }
+		B[1] = function (t) { return 3*(1-t)*(1-t)*t; }
+		B[2] = function (t) { return 3*(1-t)*t*t; }
+		B[3] = function (t) { return t*t*t; }
+		
+		var BEZIER_POINTS = 30;
+		
+		// повърхност на Безие - конструктор
+		function BezierSurface(p)
+		{
+			this.data = [];
+			for (var i=0; i<2*BEZIER_POINTS*(BEZIER_POINTS-1); i++)
+				this.data.push(0,0,0,0,0,0);
+			this.data = new Float32Array(this.data);
+			this.buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferData(gl.ARRAY_BUFFER,this.data, gl.DYNAMIC_DRAW);
+			this.n = BEZIER_POINTS;
+			this.color = [1,0.6,0.7];
+			this.set(p);
+		}
+
+		// повърхност на Безие - задаване на 4 контролни точки
+		BezierSurface.prototype.set = function(p)
+		{
+			var n = this.n;
+			
+			// изчислява координатите на точка от повърхността
+			function vertexAt(u,v)
+			{
+				u = u/(n-1);
+				v = v/(n-1);
+				
+				var q = [0,0,0];
+				for (var i=0; i<4; i++) // контролни точки по направление u
+				for (var j=0; j<4; j++) // контролни точки по направление v
+				for (var k=0; k<3; k++) // координати x,y,z
+					q[k] += B[i](u)*B[j](v)*p[i][j][k];
+				return q;
+			}
+			// изчислява нормалния вектор към точка от повърхността
+			function normalAt(u,v)
+			{
+				var nu = vectorPoints(vertexAt(u,v),vertexAt(u+0.001,v));
+				var nv = vectorPoints(vertexAt(u,v),vertexAt(u,v+0.001));
+				return unitVector(vectorProduct(nu,nv));
+			}
+			
+			// обхождане на кривата
+			var m=0;
+			for (var i=0; i<n-1; i++) // номер на лента
+			for (var j=0; j<n; j++) // номер на лента
+			{
+				var q;
+				q = vertexAt(i,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+				q = normalAt(i,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+				
+				q = vertexAt(i+1,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+				q = normalAt(i+1,j);
+				for (var k=0; k<3; k++) this.data[m++] = q[k];
+			}
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferSubData(gl.ARRAY_BUFFER,0,this.data);
+		}
+		
+		// повърхност на Безие - рисуване
+		BezierSurface.prototype.draw = function()
+		{
+			pushMatrix();
+				gl.vertexAttrib3fv(aColor,this.color);
+				useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.enableVertexAttribArray(aNormal);
+				gl.enableVertexAttribArray(aXYZ);
+
+				// рисуване на повърхнината
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+				gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+				for (var i=0; i<this.n-1; i++)
+					gl.drawArrays(gl.TRIANGLE_STRIP,2*this.n*i,2*this.n);
+			popMatrix();
+		}
+		
+		// повърхност на Безие - деструктор
+		BezierSurface.prototype.free = function()
+		{
+			gl.deleteBuffer(this.buf);
+		}
+
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.95,0.9,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+
+			// създаване на рицарския катинар
+			padlock = new BezierSurface([
+				[[1,-5, 5], [1,-3, 5], [1,3, 5], [1,5, 5]],
+				[[1,-5, 3], [2,-3, 3], [2,3, 3], [1,5, 3]],
+				[[1,-5,-3], [2,-3,-3], [2,3,-3], [1,5,-3]],
+				[[1,-5,-5], [1,-3,-5], [1,3,-5], [1,5,-5]],
+			]);
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([45*cos(time/5),45*sin(time/5),5*sin(time)],[0,0,1],[0,0,1]);
+			yRotate(sin(2*time)/2);
+
+			// рисуване на катинара
+			pushMatrix();
+				padlock.draw();
+				scale([-1,1,1]);
+				padlock.draw();
+			popMatrix();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Рицарски катинар</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

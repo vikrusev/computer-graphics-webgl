@@ -1,0 +1,170 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Динамично дърво</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		var data; // върхове
+		var mat; // работна матрица
+		
+		// придвижва локалната координатна система
+		// на матрицата напред d стъпки по оста X
+		function F(d)
+		{
+			mat[12] += mat[0]*d;
+			mat[13] += mat[1]*d;
+			mat[14] += mat[2]*d;
+			data.push(mat[12],mat[13],mat[14]);
+		}
+		// завърта локалната координатна система на матрицата
+		// от оста Y към оста X на a градуса около оста Z
+		function R(a)
+		{
+			a = radians(a);
+			var s = Math.sin(a);
+			var c = Math.cos(a);
+			
+			a = mat[0]*s+mat[4]*c;
+			mat[0]=mat[0]*c-mat[4]*s;
+			mat[4]=a;
+			
+			a = mat[1]*s+mat[5]*c;
+			mat[1]=mat[1]*c-mat[5]*s;
+			mat[5]=a;
+			
+			a = mat[2]*s+mat[6]*c;
+			mat[2]=mat[2]*c-mat[6]*s;
+			mat[6]=a;
+		}
+		// завърта локалната координатна система на матрицата
+		// от оста X към оста Y на A градуса около оста Z
+		function L(a)
+		{
+			R(-a);
+		}
+
+		// питагорово дърво - конструктор
+		function TreePythagoras()
+		{
+			data = [0,0,0];
+			mat = unitMatrix();
+
+			// рекурсивно обхожда върховете на дървото
+			function tree(len)
+			{
+				// ъгъл в разклонението
+				var alpha = 40;
+				
+				L(90);
+				F(len);
+				R(90);
+				if (len>1/50)
+				{
+					L(alpha);
+					tree(len*cos(radians(alpha)));
+					R(90);
+					tree(len*sin(radians(alpha)));
+					R(alpha);
+				}
+				else
+				{	
+					F(len);
+					R(90);
+				}
+				F(len);
+				L(90);
+			}
+			
+			tree(1);
+			
+			this.buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			this.n = data.length/3;
+			this.center = [0,0,0];
+			this.size = 1;
+			this.color = [0,0.5,1];
+		}
+		
+		// питагорово дърво - рисуване
+		TreePythagoras.prototype.draw = function()
+		{
+			pushMatrix();
+			gl.vertexAttrib3fv(aColor,this.color);
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.enableVertexAttribArray(aXYZ);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,3*FLOATS,0*FLOATS);
+				gl.drawArrays(gl.LINE_STRIP,0,this.n);
+			popMatrix();
+		}
+		
+		// питагорово дърво - деструктор
+		TreePythagoras.prototype.free = function()
+		{
+			gl.deleteBuffer(this.buf);
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+
+			// създаване на дървото
+			pytha = new TreePythagoras();
+			pytha.center = [-0.5,-2,0];
+
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([0,0,10],[0,0,0],[0,1,0]);
+
+			// рисуване на дървото
+			pytha.draw();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Динамично дърво</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,156 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Фосил на склерактиния</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		uniform mat4 uNormalMatrix; // матрица за нормалните вектори
+		uniform bool uUseNormalMatrix; // дали матрицата се подава отвън
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		uniform float uIrregularity;	// степен на грапавост
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		varying vec4 vXYZT;
+
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXYZ,1);
+			mat4 nMatrix = uUseNormalMatrix?uNormalMatrix:mvMatrix;
+			
+			// околна светлина
+			if (uUseAmbient)
+				vColor = uAmbientColor*aColor;
+			else
+				vColor = aColor;
+
+			// дифузно отражение
+			if (uUseDiffuse)
+			{
+				vec3 normal = aNormal;
+				vec3 light = normalize(-uLightDir);
+				normal = vec3(normalize(nMatrix*vec4(normal,0)));
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+			}
+
+			vXYZT = vec4(aXYZ,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		
+		uniform vec4 uClipPlane; // изрязваща равнина
+
+		varying vec3 vColor;
+		varying vec4 vXYZT;
+		void main( )
+		{
+			// изрязване
+			// if (dot(vXYZT,uClipPlane)<0.0) discard;
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			uNormalMatrix = gl.getUniformLocation(glprog,"uNormalMatrix");
+			uUseNormalMatrix = gl.getUniformLocation(glprog,"uUseNormalMatrix");
+			
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			uClipPlane = gl.getUniformLocation(glprog,"uClipPlane");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+			
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0,0,0.1);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,0.9,0.8);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// дефиниране на фосил
+			GEODESIC_SIDES++;
+			GEODESIC_SIDES++;
+			c = new GeodesicSphere([0,0,0],1);
+			c.color = [1,1,0.9];
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			lookAt([4*Math.cos(frame/100),4*Math.sin(frame/100),3], [0,0,0], [0,0,1]);
+			yRotate(0.5);
+			
+			// рисуване на фосил
+			c.draw();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Фосил на склерактиния</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

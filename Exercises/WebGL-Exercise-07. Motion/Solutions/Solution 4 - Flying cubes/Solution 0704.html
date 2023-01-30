@@ -1,0 +1,186 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Летящи кубове</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		uniform mat4 uNormalMatrix; // матрица за нормалните вектори
+		uniform bool uUseNormalMatrix; // дали матрицата се подава отвън
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		varying vec3 vXYZ;		// за земната мрежа
+		varying float vPos;		// за земната мрежа
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+			mat4 nMatrix = uUseNormalMatrix?uNormalMatrix:mvMatrix;
+			
+			vXYZ = aXYZ;
+			vPos = 1.5-gl_Position.w/150.0;
+			
+			// околна светлина
+			if (uUseAmbient)
+				vColor = uAmbientColor*(aColor);
+			else
+				vColor = aColor;
+
+			// дифузно отражение
+			vec3 light = normalize(-uLightDir);
+			vec3 normal = vec3(normalize(nMatrix*vec4(aNormal,0)));
+			if (uUseDiffuse)
+			{
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+			}
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform bool uGround;		// дали да има земна мрежа
+		varying vec3 vColor;
+		varying vec3 vXYZ;			// глобални координати
+		varying float vPos;			// отдалеченост
+		void main( )
+		{
+			if (uGround)
+			{	// ако трябва да има мрежа, изчисляваме цвета според глобалните координати
+				float kx = abs(sin(50.0*vXYZ.x))*abs(sin(50.0*vXYZ.y));
+				kx = pow(kx,0.25)*vPos; // числото определя непряко дебелината на линиите на мрежата
+				gl_FragColor = vec4(kx,kx,vPos,1);
+			}
+			else
+				gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			uNormalMatrix = gl.getUniformLocation(glprog,"uNormalMatrix");
+			uUseNormalMatrix = gl.getUniformLocation(glprog,"uUseNormalMatrix");
+			
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+			
+			uGround = gl.getUniformLocation(glprog,"uGround"); // флаг за рисуване на мрежа
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			
+			// създаване на земята
+			ground = new Cuboid([0,0,-1],[200,200,2]);
+			ground.color = [1,1,1];
+			
+			// създаване на кубчетата
+			n = 200;
+			c = [];
+			for (var i=0; i<n; i++)
+			{
+				c[i] = new Cube([0,random(-20,20)+random(-20,20)+random(-20,20),0],4);
+				c[i].color = [random(0.5,1),random(0.2,0.7),random(0,0.5)];
+				c[i].a = random(0,2*PI);			// отместване във времето
+				c[i].v = random(1/100/2,1/100*2);	// случайна скорост
+				c[i].rx = random(20,70);			// радиус по X на траекторията
+				c[i].rz = random(20,70);			// радиус по Y на траекторията
+			}
+		}
+
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			lookAt([50*Math.cos(frame/500),200*Math.sin(frame/500),25-20*Math.cos(frame/250)], [0,0,20], [0,0,1]);
+
+			// мрежата по земята се рисува в шейдъра
+			// включваме я само при рисуване на земята
+			gl.uniform1i(uGround,true);
+			ground.draw();
+			gl.uniform1i(uGround,false);
+			
+			// изчисляване на траекторията на кубчетата
+			// и рисуването им
+			for (var i=0; i<n; i++)
+			{
+				c[i].center[0] = c[i].rx*cos(frame*c[i].v+c[i].a);
+				c[i].center[2] = c[i].rz*sin(frame*c[i].v+c[i].a);
+				if (c[i].center[2]<2) c[i].center[2]=2; // плъзгане по повърхността
+				c[i].draw();
+			}
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h2>Летящи кубове</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

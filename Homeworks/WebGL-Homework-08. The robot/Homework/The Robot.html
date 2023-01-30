@@ -1,0 +1,222 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Роботът</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		BluePart = function() {
+			this.part1 = new Cuboid([0,0,2.9], [3,0.4,6], [0,0,1]);
+			this.part2 = new Cylinder([0,-0.2,0], 1.5, 0.4, [0,0,1]);
+			this.part2.rot = [0,90,0];
+			this.part3 = new Cylinder([0,-0.2,0], 1.5, 0.4, [0,0,1]);
+			this.part3.rot = [0,90,0];
+			this.rot = [0,0,0];
+		}
+
+		BluePart.prototype.draw = function()
+		{	
+			if (this.rot)
+			{
+				if (this.rot[0]) zRotate(this.rot[0]);	// хоризонтален ъгъл
+				if (this.rot[1]) xRotate(this.rot[1]);	// вертикален ъгъл
+				if (this.rot[2]) zRotate(this.rot[2]);	// осев ъгъл
+			}
+			
+			this.part3.draw();
+			this.part1.draw();
+			this.part2.draw();
+		}
+
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.9,0.9,0.9,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// платформа
+			colorGrey = [0.5,0.5,0.5];
+			colorLGrey = [0.6,0.6,0.6];
+			colorLGreyGreen = [113/255, 124/255, 142/255];
+
+			colorGreen = [0,1,0];
+			colorRed = [1,0,0];
+			colorWhite = [1,1,1];
+			colorYellow = [1,1,0];
+
+			platform = new Cylinder([0,0,-1],6,1,colorGrey);
+			platTop = new Spheroid([0,0,0],[6, 6, 1],colorGrey);
+			part1 = new Cylinder([0,0,0],0.6,4,colorLGrey);
+
+			part2 = new Cuboid([0,0,0],[3,3,1.3],colorLGreyGreen);
+			part2.rot = [0,0,0];
+
+			part3 = new Cylinder([0,0,0],1.5,5,colorLGrey);
+			part3.rot = [0,90,0];
+
+			part4 = new BluePart();
+
+			part5 = new Cylinder([0,0,0],0.6,3,colorGreen);
+			part6 = new Cylinder([0,0,0],0.6,0.5,colorRed);
+			part7 = new Cylinder([0,0,0],0.6,0.1,colorWhite);
+			part8 = new Cylinder([0,0,0],0.6,1,colorYellow);
+			part9 = new Cylinder([0,0,0],0.6,1.4,colorGreen);
+
+			part10 = new Cuboid([0,0.2,1.5], [3,0.4,4], colorLGrey);
+			part11 = new Cylinder([0,0,0], 1.5, 0.4, colorLGrey);
+			part11.rot = [0,90,0];
+
+			part12 = new Cuboid([0,0,0], [3,5,0.4], colorLGrey);
+
+			part13 = new Cylinder([0,0,0],1.5,4.6,colorLGrey);
+			part14 = new Cylinder([0,0,0],1.5,0.4,colorRed);
+			part15 = new Cuboid([0,0,0],[0.5,2,0.5],colorYellow);
+			part15.rot = [0,0,0];
+		}
+
+		var frame = 0;
+
+		var time = now();
+		var oldTime = time;
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			frame++;
+			time = now();
+			var dTime = time-oldTime;
+			oldTime = time;
+
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([75*cos(time/5),75*sin(time/5),20],[0,0,13],[0,0,1]);
+
+
+			var a = 540*Math.sin(radians(frame)/6);
+			var b = 60*Math.sin(radians(frame));
+			var c = 60*Math.sin(radians(frame));
+			
+			var a1 = 360*Math.sin(radians(frame)/6*1.7);
+			var b1 = 80*Math.sin(radians(frame)*1.3);
+			
+			pushMatrix();
+				platform.draw();
+				platTop.offset = [0,0,-1];
+				platTop.draw();
+				part1.offset = [0,0,0];
+				part1.draw();
+			
+				zRotate(a);
+				part2.draw();
+
+				pushMatrix()
+					yRotate(b);
+					
+					part3.offset = [0,0,-1/2];
+					part3.draw();
+
+					//blue parts
+					pushMatrix();
+						translate([0,2.65,-5]);
+						part4.draw();
+					popMatrix();
+					pushMatrix()
+						translate([0,-2.65,-5]);
+						part4.draw();
+					popMatrix();
+					
+					
+					translate([0,0,1.5]);
+					yRotate(c);
+					part3.draw();
+					
+					translate([0,0,-3.5]);
+					part2.draw();
+
+					translate([0,0,-1]);
+					part5.draw();
+					part6.draw();
+					part7.draw();
+					part8.draw();
+					part9.draw();
+
+						
+					zRotate(a1);
+					yRotate(b1);
+					
+					pushMatrix();
+						part3.offset = [0,0,-1/2];
+						part3.draw();
+
+						pushMatrix();
+							translate([0,2.5,-5]);
+							part11.draw();
+							part10.draw();
+						popMatrix()
+						
+						pushMatrix();
+							translate([0,-2.5,-5]);
+							part11.draw();
+							part10.draw();
+						popMatrix();
+					
+						translate([0,0,-1.3]);
+						part12.draw();
+						
+						translate([0,0,-0.2]);
+						part13.draw();
+						part14.draw();
+						
+						pushMatrix();
+							part15.draw();
+							part15.rot[0] = 5*frame;
+						popMatrix();
+						
+						pushMatrix();
+							part15.draw();
+							part15.rot[0] = 5*frame+90;
+						popMatrix();
+					popMatrix();
+				popMatrix();
+			popMatrix();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Плавна поза</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

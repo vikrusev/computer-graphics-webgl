@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Цветна палитра</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		// облак от точки
+		Cloud = function(maxN)
+		{	
+			var data = [];
+			for (var i=0; i<maxN; i++)
+				data.push(0,0,0,0,0,0);
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+			
+			this.maxN = maxN;
+			this.buf = buf;
+			this.n = 0;
+		}
+
+		// облак - метод за рисуване
+		Cloud.prototype.draw = function()
+		{	
+			pushMatrix();
+			useMatrix();
+
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			// върхове
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+			// цветове
+			gl.enableVertexAttribArray(aColor);
+			gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+
+			// рисуваме n отсечки
+			gl.drawArrays(gl.LINES,0,this.n);
+
+			popMatrix();
+		}
+
+		// облак - добавяне на точка, c е цветът
+		Cloud.prototype.point = function(x,y,z,c)
+		{	
+			if (this.n>=this.maxN) return;
+
+			var data = new Float32Array([x,y,z,c[0],c[1],c[2]]);
+			gl.bufferSubData(gl.ARRAY_BUFFER,this.n*6*FLOATS,data);
+			this.n++;
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+			
+			// прехващане на мишката само над графичното поле
+			canvas.addEventListener('mousemove',mouseMove,false);
+			canvas.addEventListener('mousedown',mouseDown,false);
+			canvas.addEventListener('mouseup',mouseUp,false);
+			canvas.addEventListener('contextmenu',function(e){e.preventDefault(); return false;},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function getColor(x)
+		{
+			var a = x/600*2*PI;
+			var g = 0.75;
+			var k = 0.5;
+			return [g+k*sin(a),
+					 g+k*sin(a+2*PI/3),
+					 g+k*sin(a+4*PI/3)];
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.2,0.2,0.15,1);
+
+			identity();
+			var proj=orthoMatrix(gl.canvas.width,gl.canvas.height,-1000,1000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			cloud = new Cloud(10000);
+			
+			for (var i=-300; i<300; i++)
+			{
+				var c = getColor(i);
+				cloud.point(i,200,0,c);
+				cloud.point(i,150,0,c);
+			}
+			cloud.point(-300,150,0,0,0,0);
+			cloud.point(300,150,0,0,0,0);
+		}
+
+		function drawFrame()
+		{
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([0,0,500],[0,0,0],[0,1,0]);
+
+			cloud.draw();
+		}
+		
+		// създаване на нова отсечка при движение на миишката 
+		var oldX,oldY;
+		var color = [1,1,1];
+		var draw = false;
+		function mouseMove(event)
+		{
+			if (event.which!=1) return;
+
+			// координати на мишката
+			x = getX(event);
+			y = getY(event);
+			
+			if (draw)
+			{
+				cloud.point(oldX,oldY,0,color);
+				cloud.point(x,y,0,color);
+			}
+			oldX = x;
+			oldY = y;
+			requestAnimationFrame(drawFrame);
+		}
+		
+		// натискане на миши бутон
+		function mouseDown(event)
+		{
+			if (event.which!=1) return;
+			
+			if (getY(event)>150)
+			{	// избор на цвят
+				color = getColor(getX(event));
+				document.getElementById('color').style.backgroundColor = 'rgb('+Math.round(255*color[0])+','+Math.round(255*color[1])+','+Math.round(255*color[2])+')'
+			}
+			else
+			{
+				oldX = getX(event);
+				oldY = getY(event);
+				draw = true;
+			}
+		}
+		
+		// пускане на бутон
+		function mouseUp(event)
+		{
+			draw = false;
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h2>Цветна палитра</h2>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid 1px Black">
+		Искаме canvas, но няма!
+	</canvas>
+	<br>
+	Избран цвят: <span id="color" style="display:inline-block; width:5em; height:1.2em; border: solid 1px Black;">&nbsp</span>
+</body>

@@ -1,0 +1,99 @@
+﻿	<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Коремни преси</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	<script src="skeleton.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// спортист
+			man = new Skeleton();
+		}
+
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			var time = now();
+			
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var a = time/3;//2.6*sin(time);
+			lookAt([6*cos(a),6*sin(a),4+2*sin(a*2)],[0,0,1],[0,0,1]);
+
+			// коремни преси
+			var t = 2*time;
+			var q = 2*time+PI;
+			// ляв крак
+			man.legL1.rot = [0,0,-50+50*sin(t)];
+			man.legL2.rot = [0,0,50-50*sin(t)];
+			man.legL3.rot = [0,0,-60-30*sin(t)];
+			// десен крак
+			man.legR1.rot = [0,0,-50+50*sin(q)];
+			man.legR2.rot = [0,0,50-50*sin(q)];
+			man.legR3.rot = [0,0,-60-30*sin(q)];
+			// тяло
+			man.tor2.rot = [30*sin(t),0,20+10*sin(2*t-1)];
+			man.tor3.rot = [30*sin(t),0,30];
+			// глава
+			man.head.rot = [0,0,50,20*sin(q)];
+			// лява ръка
+			man.armL1.rot = [0,130,40+15*sin(t),90];
+			man.armL2.rot = [0,0,120];
+			man.armL3.rot = [0,0,0,100];
+			// дясна ръка
+			man.armR1.rot = [0,-130,40+15*sin(q),-90];
+			man.armR2.rot = [0,0,120];
+			man.armR3.rot = [0,0,0,-100];
+			
+			pushMatrix();
+				xRotate(-90);
+				man.draw();
+			popMatrix();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Коремни преси</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

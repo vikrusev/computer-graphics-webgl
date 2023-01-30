@@ -1,0 +1,148 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Черно и червено</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		// облак от точки
+		Cloud = function(maxN)
+		{	
+			var data = [];
+			for (var i=0; i<maxN; i++)
+				data.push(0,0,0,0,0,0);
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+			
+			this.maxN = maxN;
+			this.buf = buf;
+			this.n = 0;
+		}
+
+		// облак - метод за рисуване
+		Cloud.prototype.draw = function()
+		{	
+			pushMatrix();
+			useMatrix();
+
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			// върхове
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+			// цветове
+			gl.enableVertexAttribArray(aColor);
+			gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+
+			// рисуваме n отсечки
+			gl.drawArrays(gl.LINES,0,this.n);
+
+			popMatrix();
+		}
+
+		// облак - добавяне на точка, r е червената компонента
+		Cloud.prototype.point = function(x,y,z,r)
+		{	
+			if (this.n>=this.maxN) return;
+
+			var data = new Float32Array([x,y,z,r,0,0]);
+			gl.bufferSubData(gl.ARRAY_BUFFER,this.n*6*FLOATS,data);
+			this.n++;
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+			
+			// прехващане на мишката само над графичното поле
+			canvas.addEventListener('mousemove',mouseMove,false);
+			canvas.addEventListener('mousedown',mouseDown,false);
+			canvas.addEventListener('mouseup',mouseUp,false);
+			canvas.addEventListener('contextmenu',function(e){e.preventDefault(); return false;},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,0.9,1);
+
+			identity();
+			var proj=orthoMatrix(gl.canvas.width,gl.canvas.height,-1000,1000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			cloud = new Cloud(10000);
+		}
+
+		function drawFrame()
+		{
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([0,0,500],[0,0,0],[0,1,0]);
+
+			cloud.draw();
+		}
+		
+		// създаване на нова отсечка при движение на миишката 
+		var oldX,oldY;
+		var draw = false;
+		function mouseMove(event)
+		{
+			if (event.which!=1 && event.which!=3) return;
+
+			// координати на мишката
+			x = getX(event);
+			y = getY(event);
+			
+			if (draw)
+			{
+				cloud.point(oldX,oldY,0,event.which>>1);
+				cloud.point(x,y,0,event.which>>1);
+			}
+			oldX = x;
+			oldY = y;
+			requestAnimationFrame(drawFrame);
+		}
+		
+		// натискане на миши бутон
+		function mouseDown(event)
+		{
+			if (event.which!=1 && event.which!=3) return;
+			
+			oldX = getX(event);
+			oldY = getY(event);
+			
+			draw = true;
+		}
+		
+		// пускане на бутон
+		function mouseUp(event)
+		{
+			draw = false;
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h2>Черно и червено</h2>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid 1px Black">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

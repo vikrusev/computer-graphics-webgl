@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Стената</title>
+
+	<style type="text/css">
+		button{
+			position: relative;
+			cursor: pointer;
+			border: 1px solid #000;
+		}
+		button.active{
+			background-color: #2bb529;
+		}
+		canvas{
+			position: absolute;
+			top: 100px;
+			left: 10px;
+		}
+	</style>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec3 aXYZ;
+		void main ()
+		{
+			gl_Position =  uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXYZ,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		function start(args = [[0,-10,70], [0,-2,0], [0,0,1]])
+		{
+
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+			var proj = perspMatrix(30,gl.canvas.width/gl.canvas.height,0,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			var view = viewMatrix(args[0], args[1], args[2]);
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// куб 1x1x1
+			var d = [0.3, 0.5, 0.15];// tuhla dumensions
+			var data = [ d[0],-d[1], d[2],	// предна стена
+						 d[0], d[1], d[2],
+						-d[0], d[1], d[2],
+						-d[0],-d[1], d[2],
+						 d[0],-d[1],-d[2], // задна стена
+						 d[0], d[1],-d[2],
+						-d[0], d[1],-d[2],
+						-d[0],-d[1],-d[2],
+						
+						 d[0],-d[1], d[2], // десни хоризонтални ръбове
+						 d[0],-d[1],-d[2],
+						 d[0], d[1], d[2],
+						 d[0], d[1],-d[2],
+						-d[0], d[1], d[2],	// леви хоризонтални ръбове
+						-d[0], d[1],-d[2],
+						-d[0],-d[1], d[2],
+						-d[0],-d[1],-d[2]
+						];
+
+			//16*Math.pow(Math.cos(radians(i)), 3), 13*Math.sin(radians(i)) - 5*Math.sin(radians(2*i)) - 2*Math.sin(radians(3*i)) - Math.sin(radians(4*i))
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,0,0);
+
+			gl.uniform3f(uColor,1,0,0);
+
+			// Вместо единичен куб, да се нарисува стена под формата на сърце
+			// от 20 реда застъпващи се тухли, използвайки трансформиран куб
+			identity();
+
+			for(var i = 0; i < 20; ++i){
+
+				for(var j = 1; j <= 360; j += 3){
+
+					var test = 0;
+					if(i%2) test = 1.5;
+
+					var x = 16*Math.pow(Math.sin(radians(j + test)), 3);
+					var y = 13*Math.cos(radians(j + test)) - 5*Math.cos(radians(2*(j + test)))
+										- 2*Math.cos(radians(3*(j + test))) - Math.cos(radians(4*(j + test)));
+					var z = i*0.45;
+
+					var next = 0.1 + test;
+					var nextX = 16*Math.pow(Math.sin(radians(j+next)), 3);
+					var nextY = 13*Math.cos(radians(j+next)) - 5*Math.cos(radians(2*(j+next)))
+										- 2*Math.cos(radians(3*(j+next))) - Math.cos(radians(4*(j+next)));
+
+					var change = (nextY - y) / (nextX - x);
+
+					var rotate = Math.atan(change) * 180 / Math.PI;
+
+					translate([x,y,z]);
+					zRotate(90-rotate);
+					useMatrix();
+					
+					gl.drawArrays(gl.LINE_LOOP,0,4);
+					gl.drawArrays(gl.LINE_LOOP,4,4);
+					gl.drawArrays(gl.LINES,8,8);
+
+					zRotate(-(90-rotate));
+					translate([-x,-y,-z]);
+				}	
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Стената</h2>
+
+	<button id="first" class="active" onclick="activate(this);start([[0,-10,70], [0,-2,0], [0,0,1]])">View #1</button>
+	<button id="second" onclick="activate(this);start([[20,-25,4], [0,0,4], [0,0,1]])">View #2</button>
+	<button id="third" onclick="activate(this);start([[35,-25,40], [0,0,5], [0,0,1]])">View #3</button>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+
+	<script type="text/javascript">
+		function activate(b){
+			document.getElementById("first").classList.remove("active");
+			document.getElementById("second").classList.remove("active");
+			document.getElementById("third").classList.remove("active");
+
+			b.classList.add("active");
+		}
+	</script>
+</body>

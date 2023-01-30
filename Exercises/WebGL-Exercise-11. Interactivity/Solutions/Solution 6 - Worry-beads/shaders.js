@@ -1,0 +1,91 @@
+﻿var vShader =
+	'uniform mat4 uProjectionMatrix;'+
+	'uniform mat4 uViewMatrix;'+
+	'uniform mat4 uModelMatrix;'+
+	'uniform mat4 uNormalMatrix;'+
+	'uniform bool uUseNormalMatrix;'+
+	''+
+	'uniform vec3 uAmbientColor;'+
+	'uniform vec3 uDiffuseColor;'+
+	'uniform bool uSelectMode;'+
+	'uniform vec3 uLightDir;'+
+	''+
+	'attribute vec3 aXYZ;'+
+	'attribute vec2 aST;'+
+	'attribute vec3 aColor;'+
+	'attribute vec3 aNormal;'+
+	''+
+	'varying vec3 vColor;'+
+	'varying vec3 vNormal;'+
+	'varying vec3 vST;'+
+	'varying vec3 vPos;'+
+	''+
+	'void main ()'+
+	'{'+
+	'	mat4 mvMatrix = uViewMatrix * uModelMatrix;'+
+	'	vec4 pos = mvMatrix * vec4(aXYZ,1);'+
+	'	gl_Position = uProjectionMatrix * pos;'+
+	'	if (!uSelectMode)'+
+	'	{'+
+	'		mat4 nMatrix = uUseNormalMatrix?uNormalMatrix:mvMatrix;'+
+	''+
+	'		vColor = uAmbientColor*aColor;'+
+	''+
+	'		vec3 light = normalize(-uLightDir);'+
+	'		vec3 normal = vec3(normalize(nMatrix*vec4(aNormal,0)));'+
+	'		vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);'+
+	''+
+	'		vPos = pos.xyz/pos.w;'+
+	'		vNormal = normal;'+
+	'		vST = vec3(aST,1);'+
+	'	}'+
+	'}';
+	
+var fShader =
+	'precision mediump float;'+
+	''+
+	'uniform highp vec3 uLightDir;'+
+	'uniform vec3 uSpecularColor;'+
+	'uniform float uShininess;'+
+	''+
+	'uniform sampler2D uTexUnit;'+
+	'uniform mat3 uTexMatrix;'+
+	''+
+	'uniform bool uSelectMode;'+
+	'uniform vec3 uSelectColor;'+
+	''+
+	'varying vec3 vNormal;'+
+	'varying vec3 vColor;'+
+	'varying vec3 vPos;'+
+	'varying vec3 vST;'+
+	''+
+	'void main( )'+
+	'{'+
+	'	if (uSelectMode)'+
+	'	{'+
+	'		gl_FragColor = vec4(uSelectColor,1.0);'+
+	'	}'+
+	'	else'+
+	'	{'+
+	'		vec3 specularColor = vec3(0);'+
+	''+
+	'		vec3 light = normalize(-uLightDir+vec3(-15,0,0));'+
+	'		vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));'+
+	'		vec3 viewDir = normalize(vPos);'+
+	
+	'		vec3 light2 = normalize(-uLightDir+vec3(+15,-10,0));'+
+	'		vec3 reflectedLight2 = normalize(reflect(light2,normalize(vNormal)));'+
+	
+	'		vec3 light3 = normalize(-uLightDir+vec3(0,15,0));'+
+	'		vec3 reflectedLight3 = normalize(reflect(light3,normalize(vNormal)));'+
+	''+
+	'		float cosa = max(dot(reflectedLight,viewDir),0.0);'+
+	'		float cosb = max(dot(reflectedLight2,viewDir),0.0);'+
+	'		float cosc = max(dot(reflectedLight3,viewDir),0.0);'+
+	'		specularColor = uSpecularColor*(pow(cosa,uShininess)+pow(cosb,2.0*uShininess)+pow(cosc,3.0*uShininess));'+
+	''+
+	'		vec2 texPos = (uTexMatrix*vST).st;'+
+	'		vec4 texCol = texture2D(uTexUnit,texPos);'+
+	'		gl_FragColor = vec4(texCol.stp*vColor+specularColor,1.0);'+
+	'	}'+
+	'}';

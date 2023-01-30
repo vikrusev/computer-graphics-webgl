@@ -1,0 +1,279 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Възелът</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;		// координати на връх
+		attribute vec3 aColor;		// цвят на връх
+		attribute vec3 aNormal;		// нормален вектор на връх
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			// околна светлина
+			vColor = aColor;
+			if (uUseAmbient)
+				vColor *= uAmbientColor;
+			
+			// дифузно отражение
+			vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		// преместено тук от другия шейдър
+		uniform highp vec3 uLightDir;
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+			vec3 light = normalize(-uLightDir);
+			
+			// намиране на отразения лъч
+			vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+
+			// в локалната координатна система "окото" на гледащия е в (0,0,0),
+			// а векторът от точката до "окото" е pos-(0,0,0) = pos
+			vec3 viewDir = normalize(vPos);
+
+			// готови сме да сметнем лъскавината
+			float cosa = max(dot(reflectedLight,viewDir),0.0);
+			vec3 specularColor = vec3(pow(cosa,5.0));
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+	<script>
+		var SIDES_X = 360;
+		var SIDES_Y = 120;
+		var r = 0.5;
+
+		TrefoilKnot = function(center,size)
+		{	
+			// пресмята връх от възела
+			function knotVertex(t) {
+				var x = Math.sin(t) + 2*Math.sin(2*t);
+				var y = Math.cos(t) - 2*Math.cos(2*t);
+				var z = -Math.sin(3*t);
+
+				return [x,y,z];
+			}
+
+			function vertex(a, b) {
+				var p = knotVertex(a);
+				var v = vectorPoints(p, knotVertex(a+0.001));
+				var u = [0,0,1];
+				var w = vectorProduct(v, u);
+				var u = vectorProduct(v, w);
+				v = unitVector(v); //z
+				u = unitVector(u); //y
+				w = unitVector(w); //x
+
+				var circle = [];
+				circle.push(r*(Math.cos(b)*u[0] + Math.sin(b)*w[0]));
+				circle.push(r*(Math.cos(b)*u[1] + Math.sin(b)*w[1]));
+				circle.push(r*(Math.cos(b)*u[2] + Math.sin(b)*w[2]));
+
+				//translate the circle
+				var x = p[0] + circle[0];
+				var y = p[1] + circle[1];
+				var z = p[2] + circle[2];
+
+				var nV = vectorPoints(p, [x,y,z]);
+
+				return [x,y,z,nV[0],nV[1],nV[2]];
+			}
+
+			function HSVtoRGB(h, s, v) {
+			    var r, g, b, i, f, p, q, t;
+			    if (arguments.length === 1) {
+			        s = h.s, v = h.v, h = h.h;
+			    }
+			    i = Math.floor(h * 6);
+			    f = h * 6 - i;
+			    p = v * (1 - s);
+			    q = v * (1 - f * s);
+			    t = v * (1 - (1 - f) * s);
+			    switch (i % 6) {
+			        case 0: r = v, g = t, b = p; break;
+			        case 1: r = q, g = v, b = p; break;
+			        case 2: r = p, g = v, b = t; break;
+			        case 3: r = p, g = q, b = v; break;
+			        case 4: r = t, g = p, b = v; break;
+			        case 5: r = v, g = p, b = q; break;
+			    }
+			    return {
+			        r: Math.round(r * 255),
+			        g: Math.round(g * 255),
+			        b: Math.round(b * 255)
+			    };
+			}
+
+			function dataPush(x, y) {
+				var p = vertex(x, y);
+
+				var color = HSVtoRGB(x/Math.PI/2,1,2);
+
+				data.push(p[0],p[1],p[2],p[3],p[4],p[5], color.r/255, color.g/255, color.b/255);
+			}
+
+			var data = [];
+
+			var dX = 2*Math.PI/SIDES_X;
+			var dY = 2*Math.PI/SIDES_Y;
+
+			for(var x = 0; x < SIDES_X; ++x) {
+				for(var y = 0; y <= SIDES_Y; ++y) {
+					dataPush(x*dX, y*dY);
+					dataPush((x+1)*dX, y*dY);
+				}
+			}
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			this.n = SIDES_X;
+			this.l = SIDES_Y*2 + 2;
+			this.buf = buf;
+			this.center = center;
+			this.size = size;
+		}
+
+		// трилистен възел - метод за рисуване
+		TrefoilKnot.prototype.draw = function()
+		{
+			pushMatrix();
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,9*FLOATS,0*FLOATS);
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,9*FLOATS,3*FLOATS);
+			gl.enableVertexAttribArray(aColor);
+			gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,9*FLOATS,6*FLOATS);
+
+			for (var i=0; i<this.n; i++) {
+				gl.drawArrays(gl.TRIANGLE_STRIP,this.l*i,this.l);
+			}
+
+			popMatrix();
+		}
+
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			gl.uniform3f(uAmbientColor,0.4,0.4,0.4);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// създаваме трилистния възел
+			s = new TrefoilKnot([0,0,0],1);
+		}
+
+	
+		var frame = 0;
+
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([15*Math.sin(frame/100),0,-15*Math.cos(frame/100)], [0,0,0], [0,-1,1]);
+			xRotate(0.5);
+
+			// рисуване на трилистния възел
+			s.draw();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Възелът</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

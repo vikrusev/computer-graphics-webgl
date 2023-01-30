@@ -1,0 +1,105 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Безкрайни стаи</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+
+			canvas.addEventListener('mousedown',mouseDown,false);
+			
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.85,0.9,0.95,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,1,1,1);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			gl.uniform1i(uTexUnit, 0);
+			gl.activeTexture(gl.TEXTURE0);
+
+			// земя
+			texGrass = loadTexture('grass.jpg');
+			var m = texIdentity();
+			texScale(m,[8,8]);
+			ground = custom(new Cuboid([0,0,-11],[400,400,2]),{color: [1,1,1], texture: texGrass, texMatrix: m});
+		}
+
+		var viewA = 0;
+		var dA = 0;
+		
+		// в момента кликване вляво или вдясно започва
+		// да върти гледната точка в избраната посока
+		
+		function drawFrame()
+		{
+			var newTime = now();
+			var dT = newTime-time;
+			time = newTime;
+			
+			// гледна точка - зависи от завъртяността
+			// и от нивото на вдигнатост на вратата
+			lookAt([40*cos(viewA),40*sin(viewA),3],[0,0,0],[0,0,1]);
+
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			// обръщане наляво или надясно
+			viewA += dT*dA;
+			
+			// рисуване на обектите
+			ground.draw();
+				
+			requestAnimationFrame(drawFrame);
+		}
+		
+		function mouseDown(event)
+		{
+			var x = getX(event);
+			if (x<-130)
+			{	// искаме въртене наляво
+				dA = 1;
+				return;
+			}
+			if (x>130)
+			{	// искаме въртене надясно
+				dA = -1;
+				return;
+			}
+			dA = 0;
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h1>Безкрайни стаи</h1>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" border="1">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

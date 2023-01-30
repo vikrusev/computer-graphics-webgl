@@ -1,0 +1,94 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Триъгълник на Рольо</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			aRGB = gl.getAttribLocation(glprog,"aRGB");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// n брой точки по всяка дъга
+			var n = 50;
+			var data = [];
+			var aj = Math.PI/2;		// ъгъл на дъга j
+			var xj = 0;				// център на дъга j
+			var yj = 0.9;
+			for(var j=0; j<3; j++)
+			{
+				var xi, yi;
+				data.push(xj*2/3,yj);
+				for(var i=0; i<n; i++)
+				{
+					// пресмятане на точка от дъгата
+					var ai = aj+(150+60.0*i/(n-1))*Math.PI/180;
+					xi = xj+1.8*Math.cos(ai);
+					yi = yj+1.8*Math.sin(ai);
+					data.push(xi*2/3,yi);
+				}
+				// последната точка от дъга става
+				// център на следващата дъга
+				xj = xi;
+				yj = yi;
+				aj = aj-2*Math.PI/3;
+			}
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.vertexAttrib3f(aRGB,1,0.5,0);
+			
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+			
+			// рисуваме трите дъги, всяка като ветрило
+			gl.drawArrays(gl.TRIANGLE_FAN,0,n+1);
+			gl.drawArrays(gl.TRIANGLE_FAN,n+1,n+1);
+			gl.drawArrays(gl.TRIANGLE_FAN,2*n+2,n+1);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Триъгълник на Рольо</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

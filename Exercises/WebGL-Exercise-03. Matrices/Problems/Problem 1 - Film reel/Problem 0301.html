@@ -1,0 +1,73 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Филмова ролка</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		void main ()
+		{
+			// аспекта поправяме с покомпонентно умножение
+			gl_Position = vec4(aXY*vec2(1.0/1.5,1),0,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// точки по ролката
+			var n = 360;
+
+			// създаване на окръжности
+			var data = [ ];
+			for(var i=0; i<n; i++)
+				data.push(Math.cos(2.0*Math.PI*i/n),Math.sin(2.0*Math.PI*i/n));
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.uniform3f(uColor,0.3,0.7,0.2);
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+
+			// рисуване на външната окръжност,
+			// за да има някаква начална мостра,
+			// която да се доработва
+			gl.drawArrays(gl.LINE_LOOP,0,n);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Филмова ролка</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

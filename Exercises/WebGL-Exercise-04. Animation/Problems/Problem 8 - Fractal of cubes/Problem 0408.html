@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Фрактал от кубове</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform vec3 uAmbientColor;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			vColor = aColor*uAmbientColor + aColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		uniform highp vec3 uLightDir;
+		uniform vec3 uSpecularColor;
+		uniform float uShininess;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+			vec3 specularColor = vec3(0);
+			
+			vec3 light = normalize(-uLightDir);
+			
+			vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+			vec3 viewDir = normalize(vPos);
+			float cosa = max(dot(reflectedLight,viewDir),0.0);
+			specularColor = uSpecularColor*pow(cosa,uShininess);
+
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+	<script>
+		var k=40;
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		// рисуване на единичен куб
+		function drawCube()
+		{
+			useMatrix();
+			gl.drawArrays(gl.TRIANGLES,0,36);
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uSpecularColor = gl.getUniformLocation(glprog,"uSpecularColor");
+		
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+
+		
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+			uShininess = gl.getUniformLocation(glprog,"uShininess");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+		
+			// куб 1x1x1
+			var v = [ [+0.5,-0.5,-0.5], [+0.5,+0.5,-0.5],
+				 	  [-0.5,+0.5,-0.5], [-0.5,-0.5,-0.5],
+					  [+0.5,-0.5,+0.5], [+0.5,+0.5,+0.5],
+					  [-0.5,+0.5,+0.5], [-0.5,-0.5,+0.5] ];
+			var n = [ [1,0,0], [-1,0,0],
+				 	  [0,1,0], [0,-1,0],
+					  [0,0,1], [0,0,-1] ];
+			var data = [].concat(
+					  v[0],n[0],v[1],n[0],v[4],n[0],
+					  v[4],n[0],v[1],n[0],v[5],n[0],
+					  v[6],n[1],v[2],n[1],v[7],n[1],
+					  v[7],n[1],v[2],n[1],v[3],n[1],
+					  v[5],n[2],v[1],n[2],v[6],n[2],
+					  v[6],n[2],v[1],n[2],v[2],n[2],
+					  v[4],n[3],v[7],n[3],v[0],n[3],
+					  v[0],n[3],v[7],n[3],v[3],n[3],
+					  v[4],n[4],v[5],n[4],v[7],n[4],
+					  v[7],n[4],v[5],n[4],v[6],n[4],
+					  v[0],n[5],v[3],n[5],v[1],n[5],
+					  v[1],n[5],v[3],n[5],v[2],n[5] );
+
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+
+			// настройка на цветове и светлини
+			gl.vertexAttrib3f(aColor,1/2,1/2,1);
+			gl.uniform3f(uAmbientColor,0.2,0.2,0.2);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,0.7,0.7,0.7);
+			gl.uniform1f(uShininess,15);
+
+			gl.uniform3f(uLightDir,0.5,-0.5,-1);
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([4*Math.cos(frame/100),4*Math.sin(frame/100),0], [0,0,0], [0,0,1]);
+
+			// засега се рисува само най-големият куб
+			// добавете и останалите кубове
+			
+			yRotate(0.5);
+			drawCube();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Фрактал от кубове</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+
+</body>

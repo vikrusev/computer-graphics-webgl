@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Замръзващ куб</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,0.9,0.9,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// използваме модул №0 за мъх
+			gl.uniform1i(uMossUnit, 0);
+
+			// използваме модул №1 за скреж
+			gl.uniform1i(uIceUnit, 1);
+			texIce = loadTexture('frost.jpg',setTexIce);
+
+			// използваме модул №2 за време
+			gl.uniform1i(uTimeUnit, 2);
+			texTime = loadTexture('time.jpg',setTexTime);
+
+
+			// дефиниране на куб с мъх
+			CYLINDER_SIDES = 4;
+			cube = new Cylinder([0,0,-2],4/1.414,4);
+			cube.color = [1,1,1];
+			cube.texture = loadTexture('moss.jpg');
+			var m = texIdentity();
+			texScale(m,[1/2.828,4/2.828]);
+			texTranslate(m,[0.707/2,0.707/2,0]);
+			texRotate(m,45);
+			cube.texMatrixBase = m;
+		}
+
+		function setTexIce(texture)
+		{
+			gl.activeTexture(gl.TEXTURE1);
+			gl.bindTexture(gl.TEXTURE_2D,texture);
+			gl.activeTexture(gl.TEXTURE0);
+		}
+
+		function setTexTime(texture)
+		{
+			gl.activeTexture(gl.TEXTURE2);
+			gl.bindTexture(gl.TEXTURE_2D,texture);
+			gl.activeTexture(gl.TEXTURE0);
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			time = now();
+
+			// промяна на фоновия цвят
+			gl.clearColor(0.9,0.9,0.8-0.1*sin(time/2),1);
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([12*cos(time/4),12*sin(time/4),8],[0,0,0],[0,0,1]);
+			yRotate(0.5);
+
+
+			// рисуване на куба
+			gl.uniform1f(uTime,sin(time/2));
+			cube.draw();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Замръзващ куб</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

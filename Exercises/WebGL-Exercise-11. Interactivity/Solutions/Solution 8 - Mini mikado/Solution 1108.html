@@ -1,0 +1,221 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Мини микадо</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<style>
+		body {
+			font-family: Consolas;
+			text-align: center;
+		}
+		h1 {
+			display: block;
+			position: fixed;
+			left: 0;
+			top: 0;
+			z-index: 1;
+			width: 100%;
+			text-align: center;
+			font-size: 5em;
+			margin: 0;
+			text-shadow: 0px 0px 3px Blue;
+			color: MidnightBlue;
+		}
+		#info {
+			width: 100%;
+			font-family: Consolas;
+			position: fixed;
+			left: 0em;
+			bottom: 1em;
+			z-index: 1;
+			font-size: 2em;
+			color: White;
+			padding: 0 0.25em;
+			background-color: rgba(0,0,255,0.1);
+			text-shadow: 0px 0px 0.2em Blue,
+				1px 1px 0 Blue,
+				-1px 1px 0 Blue,
+				-1px -1px 0 Blue,
+				1px -1px 0 Blue;
+		}
+		canvas {
+			display: block;
+			position: fixed;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',init,false);
+
+			info = document.getElementById('info');
+			
+			window.addEventListener('resize',resized,false);
+			canvas.addEventListener('mousemove',mouseMove,false);
+
+			init();
+			resized();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.85,0.9,0.95,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.5,0.5,0.5);
+			gl.uniform3f(uDiffuseColor,0.8,0.8,0.8);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			gl.uniform1i(uTexUnit, 0);
+			gl.activeTexture(gl.TEXTURE0);
+			var tex = loadTexture('texture.jpg');
+
+			// пръчици
+			CYLINDER_SIDES = 8;
+			n = 100;
+			sticksN = n;
+			obj = [];
+			for (var i=0; i<n; i++)
+			{
+				obj[i] = new Cylinder([random(-20,20),random(-20,20),random(-10,10)],0.5,20);
+				obj[i].color = [0.8,0.9,1];
+				obj[i].selectColor = [i/255,0,1];
+				obj[i].rot = [random(0,360),random(0,360),random(0,360),random(0,360)];
+				obj[i].texture = tex;
+				obj[i].active = true;
+			}
+		}
+
+		var pixelValues = new Uint8Array(4*4);
+		
+		var startTime = undefined;
+		
+		function updateInfo()
+		{
+			if (startTime)
+			{
+				info.innerHTML = '';
+				if (sticksN)
+					info.innerHTML = 'Клечки: <b>'+sticksN+'</b> | Време: <b>'+(now()-startTime).toFixed(1)+'</b>';
+				else
+				{
+					info.innerHTML = '<b>'+(now()-startTime).toFixed(1)+'</b> секунди';
+					info.style.fontSize = '7em';
+					info.style.bottom = 'calc(40%)';
+				}
+			}
+			else
+			{
+				if (sticksN==n)
+					info.innerHTML = 'Клечки: <b>'+sticksN+'</b>';
+			}
+		}
+		
+		function drawFrame()
+		{
+			var newTime = now();
+			var dT = newTime-time;
+			time = newTime;
+			
+			lookAt([80*cos(time/4),80*sin(time/4),10*sin(time)],[0,0,0],[0,0,1]);
+
+			// нормален режим - изчистваме буфера
+			gl.uniform1i(uSelectMode,false);
+			gl.clearColor(0.85,0.9,0.95,1);
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			// рисуване на обектите
+			for (var i=0; i<n; i++)
+			{
+				for (var j=0; j<3; j++)
+					obj[i].rot[j] += 10*dT;
+				obj[i].draw();
+			}
+			
+			if (startTime)
+				updateInfo();
+
+			requestAnimationFrame(drawFrame);
+		}
+		
+		// при движение на мишката проверяваме над кой обект е
+		function mouseMove(event)
+		{
+			var mouseX = getX(event)+Math.round(gl.canvas.width/2);
+			var mouseY = getY(event)+Math.round(gl.canvas.height/2);
+
+			gl.uniform1i(uSelectMode,true);
+			gl.clearColor(0,0,0,1);
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			for (var i=0; i<n; i++) if (obj[i].active)
+			{
+				gl.uniform3fv(uSelectColor,obj[i].selectColor);
+				obj[i].draw();
+			}
+			
+			// четем цветовете на 2х2 пиксела
+			gl.readPixels(mouseX, mouseY, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, pixelValues);
+			
+			// намираме кой обект е закодиран и в 4-те пиксела
+			if (pixelValues[0]==pixelValues[4] && pixelValues[0]==pixelValues[8] && pixelValues[0]==pixelValues[12] && pixelValues[2]==255)
+			{
+				// при първия избор стартираме хронометъра
+				if (startTime===undefined)
+					startTime = now();
+				sticksN--;
+				updateInfo();
+				// след последния избор спираме хронометъра
+				if (!sticksN)
+				{
+					startTime = undefined;
+				}
+				obj[pixelValues[0]].active = false;
+				obj[pixelValues[0]].color = [1,0,0];
+			}	
+
+//			requestAnimationFrame(drawFrame);
+		}
+		
+		function resized()
+		{
+			gl.canvas.width = gl.canvas.offsetWidth;
+			gl.canvas.height = gl.canvas.offsetHeight;
+			gl.viewport(0,0,gl.canvas.width,gl.canvas.height);
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+		}
+	</script>
+</head>
+
+<body onload="start()">
+	<h1>Мини микадо</h1>
+	<div id="info">Минете над всички клечки</div>
+	
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

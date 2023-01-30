@@ -1,0 +1,301 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Кубът</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXYZ,1);
+			
+			// околна светлина
+			if (uUseAmbient)
+				vColor = uAmbientColor*aColor;
+			else
+				vColor = aColor;
+
+			// дифузно отражение
+			if (uUseDiffuse)
+			{
+				vec3 light = normalize(-uLightDir);
+				vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+			}
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vColor;
+		
+		void main( )
+		{
+			gl_FragColor = vec4(vColor.r,vColor.gb,1);
+		}
+	</script>
+
+	<script>
+//		
+//
+//		0------------2
+//		| \       /  |        2----3
+//		|   1----3   |      /        \
+//		|   |    |   |    0------------1
+//		|   7----5   |
+//		| /        \ |
+//		6------------4
+	
+		// Плочка на Рубик - конструктор
+		var dir=0;
+		RubikPlate = function(center,color)
+		{	
+			this.center=center;
+			this.color=color;
+			this.dir=dir;
+			var r=0.5, e=0.05, s=r-e;
+			// върхове и нормали
+			var data = [
+				-r,+r,0,  0,0,1,
+				-s,+s,e,  0,0,0,
+				+r,+r,0,  0,0,1,
+				+s,+s,e,  0,0,0,
+				+r,-r,0,  0,0,1,
+				+s,-s,e,  0,0,0,
+				-r,-r,0,  0,0,1,
+				-s,-s,e,  0,0,0,
+				-r,+r,0,  0,0,1,
+				-s,+s,e,  0,0,0,
+
+				-s,+s,e,  0,0,1,
+				-s,-s,e,  0,0,1,
+				+s,+s,e,  0,0,1,
+				+s,-s,e,  0,0,1,
+				];
+			// локална променлива за инстацията с WebGL буфер
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			// запомняме буфера в текущата инстанция
+			this.buf = buf;
+		}
+
+		// Плочка на Рубик - метод за рисуване
+		RubikPlate.prototype.draw = function()
+		{	
+			pushMatrix();
+			switch (this.dir)
+			{	// правим подходящата трансформация,
+				// за да се премести плочката на
+				// правилната стена на куба на Рубик
+				case 0:
+					translate([0,0,1.5]);
+					break;
+				case 1:
+					xRotate(90);
+					translate([0,0,1.5]);
+					break;
+				case 2:
+					xRotate(180);
+					translate([0,0,1.5]);
+					break;
+				case 3:
+					xRotate(270);
+					translate([0,0,1.5]);
+					break;
+				case 4:
+					yRotate(90);
+					translate([0,0,1.5]);
+					break;
+				case 5:
+					yRotate(-90);
+					translate([0,0,1.5]);
+					break;
+			}
+			translate(this.center); // мястото
+			useMatrix();
+			// активираме буфера, създаден от конструктора
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			// казваме къде са координатите
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+			// казваме къде са нормалите
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+			// рисуваме сиво-черния контур
+			gl.vertexAttrib3f(aColor,0.2,0.2,0.2); // подаваме цвета
+			gl.drawArrays(gl.TRIANGLE_STRIP,0,10);
+			// рисуваме цветната лепенка
+			gl.vertexAttrib3fv(aColor,this.color);
+			gl.drawArrays(gl.TRIANGLE_STRIP,10,4);
+			popMatrix();
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(2/4,2/4,2/4,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			gl.uniform3f(uAmbientColor,0.4,0.4,0.4);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// цветове - за удобство, по първа буква
+			var w=[1,1,1];	// бяло
+			var r=[1,0,0];	// червено
+			var g=[0,1,0];	// зелено
+			var y=[1,1,0];	// жълто
+			var o=[1,0.5,0];// оранжево
+			var b=[0,0,1];	// синьо
+			
+			// създаваме всичките 6x9 плочки
+			// разположението на цветовете е взето от:
+			// http://www.mathworks.com/matlabcentral/fileexchange/8260-flatrubiks/content/flatRubiksHelp.html
+			c = [];
+			dir=0;
+			c.push(new RubikPlate([-1,+1,0],w));
+			c.push(new RubikPlate([ 0,+1,0],w));
+			c.push(new RubikPlate([+1,+1,0],y));
+			c.push(new RubikPlate([-1, 0,0],w));
+			c.push(new RubikPlate([ 0, 0,0],y));
+			c.push(new RubikPlate([+1, 0,0],w));
+			c.push(new RubikPlate([-1,-1,0],w));
+			c.push(new RubikPlate([ 0,-1,0],r));
+			c.push(new RubikPlate([+1,-1,0],g));
+			dir=1;
+			c.push(new RubikPlate([-1,+1,0],b));
+			c.push(new RubikPlate([ 0,+1,0],g));
+			c.push(new RubikPlate([+1,+1,0],g));
+			c.push(new RubikPlate([-1, 0,0],r));
+			c.push(new RubikPlate([ 0, 0,0],o));
+			c.push(new RubikPlate([+1, 0,0],y));
+			c.push(new RubikPlate([-1,-1,0],r));
+			c.push(new RubikPlate([ 0,-1,0],o));
+			c.push(new RubikPlate([+1,-1,0],b));
+			dir=2;
+			c.push(new RubikPlate([-1,+1,0],b));
+			c.push(new RubikPlate([ 0,+1,0],b));
+			c.push(new RubikPlate([+1,+1,0],g));
+			c.push(new RubikPlate([-1, 0,0],r));
+			c.push(new RubikPlate([ 0, 0,0],w));
+			c.push(new RubikPlate([+1, 0,0],o));
+			c.push(new RubikPlate([-1,-1,0],o));
+			c.push(new RubikPlate([ 0,-1,0],o));
+			c.push(new RubikPlate([+1,-1,0],w));
+			dir=3;
+			c.push(new RubikPlate([-1,+1,0],b));
+			c.push(new RubikPlate([ 0,+1,0],y));
+			c.push(new RubikPlate([+1,+1,0],r));
+			c.push(new RubikPlate([-1, 0,0],y));
+			c.push(new RubikPlate([ 0, 0,0],r));
+			c.push(new RubikPlate([+1, 0,0],r));
+			c.push(new RubikPlate([-1,-1,0],r));
+			c.push(new RubikPlate([ 0,-1,0],o));
+			c.push(new RubikPlate([+1,-1,0],o));
+			dir=4;
+			c.push(new RubikPlate([-1,+1,0],r));
+			c.push(new RubikPlate([ 0,+1,0],b));
+			c.push(new RubikPlate([+1,+1,0],o));
+			c.push(new RubikPlate([-1, 0,0],g));
+			c.push(new RubikPlate([ 0, 0,0],b));
+			c.push(new RubikPlate([+1, 0,0],y));
+			c.push(new RubikPlate([-1,-1,0],y));
+			c.push(new RubikPlate([ 0,-1,0],g));
+			c.push(new RubikPlate([+1,-1,0],y));
+			dir=5;
+			c.push(new RubikPlate([-1,+1,0],y));
+			c.push(new RubikPlate([ 0,+1,0],w));
+			c.push(new RubikPlate([+1,+1,0],g));
+			c.push(new RubikPlate([-1, 0,0],b));
+			c.push(new RubikPlate([ 0, 0,0],g));
+			c.push(new RubikPlate([+1, 0,0],b));
+			c.push(new RubikPlate([-1,-1,0],w));
+			c.push(new RubikPlate([ 0,-1,0],g));
+			c.push(new RubikPlate([+1,-1,0],o));
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([10*Math.cos(frame/100),10*Math.sin(frame/100),0], [0,0,0], [0,-1,1]);
+			yRotate(0.1);
+
+			// рисуване на куба, плочка по плочка
+			for (var cc in c) c[cc].draw();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Кубът</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

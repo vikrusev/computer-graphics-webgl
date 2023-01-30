@@ -1,0 +1,131 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>RGB куб</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		varying vec3 vColor;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXYZ,1);
+			vColor = aColor;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vColor;
+		void main( )
+		{
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function drawCube()
+		{
+			useMatrix();
+			gl.drawElements(gl.TRIANGLES,36,gl.UNSIGNED_SHORT,0);
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			aColor = gl.getAttribLocation(glprog,"aColor");
+
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+			
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			// куб 1x1x1 с цветове по върховете
+			var data1 = [ 1,0,0, 1,1,0, 0,1,0, 0,0,0,
+			              1,0,1, 1,1,1, 0,1,1, 0,0,1
+					    ];
+			var buf1 = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf1);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data1), gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,3*FLOATS,0*FLOATS);
+			// за цветове използваме същите тройки числа,
+			// които използваме и за координати на върховете
+			gl.enableVertexAttribArray(aColor);
+			gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,3*FLOATS,0*FLOATS);
+
+			// индекси
+			var data2 = [ 0,1,4, 4,1,5, 6,2,7, 7,2,3,
+						  5,1,6, 6,1,2, 4,7,0, 0,7,3,
+						  4,5,7, 7,5,6, 0,3,1, 1,3,2 ];
+			var buf2 = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buf2);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(data2), gl.STATIC_DRAW);
+	}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			// фиксирана гледна точка
+			lookAt([3,2,0], [0,0,0], [0,0,1]);
+
+			// някакво въртене, което се акумулира от фрейм във фрейм
+			xRotate(0.5*Math.sin(frame/100));
+			yRotate(0.6*Math.cos(frame/91));
+			zRotate(0.7*Math.sin(frame/82));
+			
+			// рисуване на куба с отместване, за да се
+			// върти около геометричния си център
+			pushMatrix();
+			translate([-0.5,-0.5,-0.5]);
+			drawCube(frame);
+			popMatrix();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>RGB куб</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

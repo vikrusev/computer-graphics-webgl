@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Септагон</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 10.0;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		void main( )
+		{
+			gl_FragColor = vec4(0,0,0,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var data = [ ];
+			for(var i=0; i<7; i++)
+			{
+				var a = 2*Math.PI/7*i;
+				data.push(0.5*Math.cos(a),0.5*Math.sin(a)*6/4);
+			}
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			
+			gl.enableVertexAttribArray(aXY);
+
+			gl.vertexAttribPointer(aXY,2,gl.FLOAT,false,0,0);
+
+			gl.drawArrays(gl.POINTS,0,7);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Септагон</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

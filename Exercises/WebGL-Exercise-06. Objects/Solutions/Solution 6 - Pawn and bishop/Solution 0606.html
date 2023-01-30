@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Пешка и офицер</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;		// координати на връх
+		attribute vec3 aColor;		// цвят на връх
+		attribute vec3 aNormal;		// нормален вектор на връх
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			// околна светлина
+			vColor = aColor;
+			if (uUseAmbient)
+				vColor *= uAmbientColor;
+			
+			// дифузно отражение
+			vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		// преместено тук от другия шейдър
+		uniform highp vec3 uLightDir;
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+		uniform float uShininess;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+			vec3 light = normalize(-uLightDir);
+			
+			// намиране на отразения лъч
+			vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+
+			// в локалната координатна система "окото" на гледащия е в (0,0,0),
+			// а векторът от точката до "окото" е pos-(0,0,0) = pos
+			vec3 viewDir = normalize(vPos);
+
+			// готови сме да сметнем лъскавината
+			float cosa = max(dot(reflectedLight,viewDir),0.0);
+			//specularColor = uSpecularColor*pow(cosa,uShininess);
+			vec3 specularColor = vec3(pow(cosa,10.0));
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+	<script>
+		// изчислява сферична издутина с радиус R на
+		// ниво Z, издута хоризонтално с мащаб scale
+		function sphere(z,Z,R,scale)
+		{
+			if ( Math.abs(z-Z)<=R )
+				return scale*Math.sqrt(R*R-(z-Z)*(z-Z));
+			return 0;
+		}
+		
+		// функция, която дефинира профила на пешка
+		function pawnProfile(z)
+		{
+			
+			// основен наклон на пешката
+			x = (1-z)/5;
+			
+			// сфера за главата
+			x = Math.max(x,sphere(z,0.85001,0.15,1));
+			
+			// сфероид за яката
+			x = Math.max(x,sphere(z,0.65,0.05,4));
+			
+			// сфероид за основата
+			x = Math.max(x,sphere(z,0.00,0.25,1.5));
+			return x;
+		}
+		
+		// функция, която дефинира профила на офицер
+		function knightProfile(z)
+		{
+			
+			// основен наклон на офицера
+			x = (1-z)/7;
+			
+			if (z>0.66) x = 0.35*(1-z)-0.01;
+			
+			// сфера за главата
+			x = Math.max(x,sphere(z,0.96001,0.04,1));
+			x = Math.max(x,sphere(z,0.63,0.15*3/4,1));
+			
+			// сфероид за яката
+			x = Math.max(x,sphere(z,0.65*3/4,0.05*3/4,4));
+			
+			// сфероид за основата
+			x = Math.max(x,sphere(z,0.00,0.2,1.5));
+			return x;
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			uNormalMatrix = gl.getUniformLocation(glprog,"uNormalMatrix");
+			uUseNormalMatrix = gl.getUniformLocation(glprog,"uUseNormalMatrix");
+			
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.5,0.8,0.5,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.2,0.2,0.2);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// създаване на две пешки и два офицера
+			ROTATIONAL_LEVELS = 71;
+			ROTATIONAL_SIDES = 30;
+			figure11 = new RotationalSolid([3,3,-3],[6,6,6],pawnProfile);
+			figure11.color = [[0.8,0.8,0.8], [0.8,0.8,0.8]];
+
+			figure10 = new RotationalSolid([3,-3,-3],[6,6,6],pawnProfile);
+			figure10.color = [[0.1,0.1,0.1], [0.1,0.1,0.1]];
+
+			figure01 = new RotationalSolid([-3,3,-3],[8,8,8],knightProfile);
+			figure01.color = figure10.color;
+
+			figure00 = new RotationalSolid([-3,-3,-3],[8,8,8],knightProfile);
+			figure00.color = figure11.color;
+		}
+
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			lookAt([25*Math.cos(frame/100),25*Math.sin(frame/100),6-6*Math.sin(frame/75)], [0,0,0], [0,0,1]);
+			//yRotate(0.5);
+
+			// рисуване на пешките и офицерите
+			figure00.draw();
+			figure01.draw();
+			figure10.draw();
+			figure11.draw();
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Пешка и офицер</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

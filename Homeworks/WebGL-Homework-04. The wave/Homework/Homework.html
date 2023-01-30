@@ -1,0 +1,331 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Вълнàта</title>
+
+	<script src="webgl-fmi.js">
+		// Направете следните промени по тази програма
+		//	(1)	Повърхността да е с подвижни вълни от центъра към периферията
+		//	(2)	Осветяването да е идеално и да няма ефект на Мах
+		//	(3)	Да може с бутони да се превключва между шоколадова повърхност
+		//		и повърхност, оцветена като дъгата
+	</script>
+
+	<style type="text/css">
+		button{
+			position: relative;
+			cursor: pointer;
+			border: 1px solid #000;
+		}
+		button.active{
+			background-color: #2bb529;
+		}
+		canvas{
+			position: absolute;
+			top: 100px;
+			left: 10px;
+		}
+	</style>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec2 aXY;		// координати на връх
+		attribute vec3 aColor;		// цвят на връх
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		uniform float uFrame;
+		uniform float uSpeed;
+		uniform bool uNyanColor;
+
+		float surface(in float x, in float y) {
+			float speed = clamp(uSpeed, -5.0, 5.0)/5.0;
+			float r = sqrt(x*x+y*y) - uFrame*speed;
+			float z = 8.0*cos(r/5.0)*cos(r/10.0)*cos(r/20.0);
+			return z;
+		}
+
+		float hue2rgb(float p, float q, float t){
+            if(t < 0.0) t += 1.0;
+            if(t > 1.0) t -= 1.0;
+            if(t < 1.0/6.0) return p + (q - p) * 6.0 * t;
+            if(t < 1.0/2.0) return q;
+            if(t < 2.0/3.0) return p + (q - p) * (2.0/3.0 - t) * 6.0;
+            return p;
+        }
+
+		vec3 hsl2rgb(vec3 col) {
+			float test = mod(col.x + 5.0*uFrame, 360.0)/360.0;
+			vec3 color = vec3(test, col.y/100.0, col.z/100.0);
+		 	float r, g, b;
+
+		 	if(color.y == 0.0){
+		        r = g = b = color.z; // achromatic
+		    }else{
+		        float q = color.z < 0.5 ? color.z * (1.0 + color.y) : color.z + color.y - color.z * color.y;
+		        float p = 2.0 * color.z - q;
+		        r = hue2rgb(p, q, color.x + 1.0/3.0);
+		        g = hue2rgb(p, q, color.x);
+		        b = hue2rgb(p, q, color.x - 1.0/3.0);
+		    }
+
+		    return vec3(r, g, b);
+		}
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			
+			float z = surface(aXY.x, aXY.y);
+
+			vec4 pos = mvMatrix * vec4(aXY,z,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			// околна светлина
+			vColor = vec3(1.0, 125.0/255.0, 125.0/255.0);
+			if (uUseAmbient){
+				vColor *= uAmbientColor;
+			}
+			
+			// дифузно отражение
+			float eps = 0.01;
+			
+			vec3 p0 = vec3(aXY.x, aXY.y, surface(aXY.x, aXY.y));
+			vec3 p1 = vec3(aXY.x-eps, aXY.y, surface(aXY.x-eps, aXY.y));
+			vec3 p2 = vec3(aXY.x, aXY.y-eps, surface(aXY.x, aXY.y-eps));
+
+			vec3 normalVec = normalize(cross(p1-p0,p2-p0));
+
+			vec3 normal = vec3(normalize(mvMatrix*vec4(normalVec,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse) {
+				if(uNyanColor) {
+					float speed = clamp(uSpeed, -5.0, 5.0)/5.0;
+					vec3 temp = vec3(uFrame*speed - (length(aXY) + 40.0) * 4.5, aColor.yz);
+					vColor += hsl2rgb(temp)*uDiffuseColor*max(dot(normal,light),0.0);
+				}
+				else {
+					vColor += (aColor/360.0)*uDiffuseColor*max(dot(normal,light),0.0);
+				}
+			}
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		// преместено тук от другия шейдър
+		uniform highp vec3 uLightDir;
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+		uniform float uShininess;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+			vec3 specularColor = vec3(0);
+			
+			// огледално отражение
+			if (uUseSpecular)
+			{
+				vec3 light = normalize(-uLightDir);
+				vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+				vec3 viewDir = normalize(vPos);
+
+				float cosa = max(dot(reflectedLight,viewDir),0.0);
+				specularColor = uSpecularColor*pow(cosa,uShininess);
+			}
+
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+	<script>
+		var k = 40;
+		var precision = 120;
+		var pr = precision/k;
+		var speed = 3;
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+			setInterval(drawFrame, 1000/60);
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+			
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+
+			uSpecularColor = gl.getUniformLocation(glprog,"uSpecularColor");
+			uUseSpecular = gl.getUniformLocation(glprog,"uUseSpecular");
+
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+			uShininess = gl.getUniformLocation(glprog,"uShininess");
+
+			uFrame = gl.getUniformLocation(glprog,"uFrame");
+			uSpeed = gl.getUniformLocation(glprog,"uSpeed");
+			uNyanColor = gl.getUniformLocation(glprog,"uNyanColor");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+
+			// генерираме триъгълниците: координати на върхове
+			var data = [];
+			for (var x=-precision; x<precision; x++) {
+				for (var y=-precision; y<precision; y++)
+				{
+					data.push(x/pr,  y/pr);
+					data.push((x+1)/pr,y/pr);
+					data.push(x/pr,  (y+1)/pr);
+
+					data.push(x/pr, (y+1)/pr);
+					data.push((x+1)/pr, y/pr);
+					data.push((x+1)/pr, (y+1)/pr);
+				}
+			}
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			// включване на върховете
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY, 2, gl.FLOAT, false, 2*FLOATS, 0*FLOATS);
+
+			// настройка на цветове и светлини
+			gl.vertexAttrib3f(aColor, 140, 100, 75);
+			gl.uniform3f(uAmbientColor, 0.35, 0.3, 0.0);
+			gl.uniform3f(uDiffuseColor, 1, 1, 1);
+			gl.uniform3f(uSpecularColor, 1, 1, 1);
+			gl.uniform1f(uShininess, 20);
+
+			gl.uniform3f(uLightDir, 0, 0, -1);
+			
+			gl.uniform1i(uUseAmbient, true);
+			gl.uniform1i(uUseDiffuse, true);
+			gl.uniform1i(uUseSpecular, true);
+
+			gl.uniform1i(uNyanColor, false);
+		}
+		
+		var frame = 0;
+		var view = true;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT + gl.DEPTH_BUFFER_BIT); // изчистваме цвета и дълбочината
+
+			// движение на камерата около повърхнината с периодично
+			// приближаване към и отдалечаване от нея
+			var dist = 80 + 37 * Math.sin(frame/100);
+			var d = 0.6 + 0.3 * Math.sin(frame/200);
+			if(view) {
+				lookAt([dist*Math.cos(frame/300)*d,dist*Math.sin(frame/300)*d,(140-dist)*d], [0.1,-0.1,0], [0,0,1]);
+			}
+			else {
+				lookAt([0, 150,50], [0,0,0], [0,0,1]);
+			}
+			
+			gl.uniform1f(uFrame, frame);
+			gl.uniform1f(uSpeed, speed);			
+
+			useMatrix();
+			gl.drawArrays(gl.TRIANGLES, 0, (2*precision)*(2*precision)*(2*3));
+			
+			//requestAnimationFrame(drawFrame);
+		}
+
+		function setColor(nyanColor) {
+			gl.uniform1f(uNyanColor, nyanColor);
+		}
+
+		function setSpeed(val) {
+			speed = Math.max(Math.min(speed + (val == 0 ? -1 : 1), 5), -5);
+			var span = document.getElementById("speed");
+			span.innerHTML = speed;
+			if(speed == 5){
+				span.innerHTML += " MAX";
+			}
+			if(speed == -5){
+				span.innerHTML += " MIN";
+			}
+		}
+
+		function setView(v){
+			view = v;
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Вълнàта</h2>
+
+	<button id="first" class="color active" onclick="activate(this);setColor(false)">Color #1</button>
+	<button id="second" class="color" onclick="activate(this);setColor(true)">Color #2</button>
+	<button id="firstView" class="view active" onclick="activate(this);setView(true)">View #1</button>
+	<button id="secondView" class="view" onclick="activate(this);setView(false)">View #2</button>
+	<button id="third" onclick="setSpeed(true)">Speed++</button>
+	<button id="third" onclick="setSpeed(false)">Speed--</button>
+
+	Speed: <span id="speed">3</span>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+
+	<script type="text/javascript">
+		function activate(b){
+			document.getElementsByClassName(b.classList[0])[0].classList.remove("active");
+			document.getElementsByClassName(b.classList[0])[1].classList.remove("active");
+
+			b.classList.add("active");
+		}
+	</script>
+</body>

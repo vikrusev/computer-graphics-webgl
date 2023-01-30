@@ -1,0 +1,74 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>GLSL пеперуда</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute float aIndex;
+		uniform int uN;
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			float a = radians(360.0*aIndex/float(uN));
+			float r = (exp(cos(a))-2.0*cos(4.0*a)+pow(sin(a/12.0),5.0))/2.5;
+			gl_Position = vec4(r*sin(a)*2.0/3.0,r*cos(a)-0.265,0,1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aIndex = gl.getAttribLocation(glprog,"aIndex");
+			aRGB = gl.getAttribLocation(glprog,"aRGB");
+			uN = gl.getUniformLocation(glprog,"uN");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var n = 250;
+			var data = [ ];
+			for(var i=0; i<n; i++) data.push(i);
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.vertexAttrib3f(aRGB,1,0.2,0);
+			gl.uniform1i(uN,n);
+			
+			gl.enableVertexAttribArray(aIndex);
+			gl.vertexAttribPointer(aIndex,1,gl.FLOAT,false,0,0);
+			gl.drawArrays(gl.LINE_LOOP,0,n);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>GLSL пеперуда</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

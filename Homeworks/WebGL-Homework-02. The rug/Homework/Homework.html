@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Чергата</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 2.0;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(uRGB,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog, "aXY");
+			uRGB = gl.getUniformLocation(glprog, "uRGB");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+
+			//THESE 2 can be changed
+			var n = 7;
+			var widthOfWhiteStripes = 0.03;
+			
+		
+			var pointsInCurve = 200;
+			var leftCurve = [];
+			var rightCurve = [];
+
+
+			//the most left line with x == -1
+			for(var i = pointsInCurve/(-2); i < pointsInCurve/2; ++i){
+				leftCurve.push(-1, (2*i)/pointsInCurve);
+			}
+			
+
+			var stripeSector = 2/n; //originally it is 1 / (n/2), this var is for the stripes to be uniformly drawn on the context
+
+			//fill the dataArray
+			for(var i = n/(-2); i < n/2; ++i) {
+				var rand = random(20, 70);
+				var sinCOS = Math.floor(random(0, 2));
+
+				var x;
+				var y = 0;	
+				for(var j = pointsInCurve/(-2); j < pointsInCurve/2; ++j) {
+					if(sinCOS){
+						x = Math.cos(j/10) / n / 2  + (i + 1/2)*stripeSector;
+					}
+					else{
+						x = Math.sin(j/10) / n / 2 + (i + 1/2)*stripeSector;
+					}
+
+					y = j / rand;
+					
+					rightCurve.push(x, y);
+					leftCurve.push(x + widthOfWhiteStripes, y);
+				}
+			}
+
+
+			//the most rigth line with x == 1
+			for(var i = pointsInCurve/(-2); i < pointsInCurve/2; ++i){
+				rightCurve.push(1, (2*i)/pointsInCurve);
+			}
+
+
+			//combine all the data we need in one array
+			var finalData = [];
+			for(var i = 0; i < n + 1; ++i){
+
+				for(var j = 0; j < 2*pointsInCurve; j += 2){
+					finalData.push(leftCurve[j + 2*i*pointsInCurve], leftCurve[j + 2*i*pointsInCurve + 1], 
+									rightCurve[j + 2*i*pointsInCurve], rightCurve[j + 2*i*pointsInCurve + 1]);
+				}
+			}
+
+			//create the buffer and bind it
+			var vBuf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, vBuf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(finalData), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXY);
+			gl.vertexAttribPointer(aXY, 2, gl.FLOAT, false, 0, 0);
+
+
+			/*draw the colored parts
+			* to get the real milky colors:    red: 220-255, green: 205-255, blue: 217-255
+			* but we want to have a bit darker colors
+			*/
+			for(var i = 0; i < n + 1; ++i){
+				var r = random(180, 255)/255;
+				var g = random(165, 255)/255;
+				var b = random(177, 255)/255;
+
+				gl.uniform3f(uRGB, r, g, b);
+				gl.drawArrays(gl.TRIANGLE_STRIP, 2*i*pointsInCurve, 2*pointsInCurve);
+			}
+
+			//set color to black
+			gl.uniform3f(uRGB, 0.0, 0.0, 0.0);
+
+			//draw the black curves
+			gl.vertexAttribPointer(aXY, 2, gl.FLOAT, false, 4*FLOATS, 0);
+			for(var i = 0; i < n + 1; ++i){
+				gl.drawArrays(gl.LINE_STRIP, i*pointsInCurve, pointsInCurve);
+			}
+
+			gl.vertexAttribPointer(aXY, 2, gl.FLOAT, false, 4*FLOATS, 2*FLOATS);
+			for(var i = 0; i < n + 1; ++i){
+				gl.drawArrays(gl.LINE_STRIP, i*pointsInCurve, pointsInCurve);
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Чергата</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

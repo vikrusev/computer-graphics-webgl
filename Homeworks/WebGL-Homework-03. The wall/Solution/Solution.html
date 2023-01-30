@@ -1,0 +1,153 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Стената</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec3 aXYZ;
+		void main ()
+		{
+			gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXYZ,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		// точка от контура на сърцето
+		// x = 16*sin(t)^3
+		// y = 13*cos(t)-5cos(2t)-2cos(3t)-cos(4t)
+		// формула от: http://mathworld.wolfram.com/HeartCurve.html
+		function heart(t)
+		{
+			t = radians(t);
+			var x = 16*Math.pow(Math.sin(t),3);
+			var y = 3+13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
+			return {x:x, y:y};
+		}
+		
+		// рисуване на тухла
+		function brick(p,z,a)
+		{
+			identity();
+			translate([p.x,p.y,z]);	// на желаното място
+			zRotate(-a);			// завъртяна по тангентата
+			scale([0.9,0.5,0.3]);	// и искания размер 
+			useMatrix();
+			gl.drawArrays(gl.LINE_LOOP,0,4);
+			gl.drawArrays(gl.LINE_LOOP,4,4);
+			gl.drawArrays(gl.LINES,8,8);
+		}
+
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var proj = perspMatrix(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			var view = viewMatrix([25,-25,36], [0,6,0], [0,0,1]);
+//			var view = viewMatrix([15,-20,5], [0,0,3], [0,0,1]);	// поглед отблизо
+//			var view = viewMatrix([0,0,70], [0,0,0], [0,1,0]);		// поглед отгоре
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// куб 1x1x1
+			var data = [ 0.5,-0.5,0.5,	// предна стена
+						 0.5,0.5,0.5,
+						-0.5,0.5,0.5,
+						-0.5,-0.5,0.5,
+						 0.5,-0.5,-0.5, // задна стена
+						 0.5,0.5,-0.5,
+						-0.5,0.5,-0.5,
+						-0.5,-0.5,-0.5,
+						
+						 0.5,-0.5,0.5, // десни хоризонтални ръбове
+						 0.5,-0.5,-0.5,
+						 0.5,0.5,0.5,
+						 0.5,0.5,-0.5,
+						-0.5,0.5,0.5,	// леви хоризонтални ръбове
+						-0.5,0.5,-0.5,
+						-0.5,-0.5,0.5,
+						-0.5,-0.5,-0.5
+						];
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,0,0);
+
+			// рисуване на тухли в кафяво
+			gl.uniform3f(uColor,0.5,0,0);
+
+			// рисуване на 20 реда от тухли
+			for( var z=0; z<20; z++ )
+			{
+				var j=0;		// начален индекс
+				var q=heart(j);	// начална позиция
+				for( var i=0; i<360; i+=0.1)
+				{
+					// намираме новото място и разстоянието до последната поставена тухла
+					var p = heart(i);
+					var dist = (p.x-q.x)*(p.x-q.x)+(p.y-q.y)*(p.y-q.y);
+					
+					// за да не са тухлите ту сбити, ту рехави, създаваме тухла само
+					// когато разстоянието до предишната тухла е достатъчно голямо
+					if( dist>1 )
+					{
+						// отместване - да са тухлите на зигзаг
+						var k = i-(z%2)*(i-j)/2; 
+						
+						// числено пресмятане на ъгъла на тангентата
+						var p1 = heart(k-0.1);
+						var p2 = heart(k+0.1);
+						var a = Math.atan2(p2.y-p1.y,p2.x-p1.x)*180/Math.PI;
+						
+						// рисуване на тухла
+						brick(heart(k),z*0.4,a);
+						
+						// запомняне на текущата позиция и индекс
+						// на последно нарисуваната тухла
+						q = p;
+						j = i;
+					}
+				}
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Стената</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

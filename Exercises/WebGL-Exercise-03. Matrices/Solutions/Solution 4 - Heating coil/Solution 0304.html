@@ -1,0 +1,93 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Реотан</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		// ъгъл по реотана
+		attribute float aAngle;
+		
+		void main ()
+		{
+			// намиране на точка - по синусоидата на
+			// реотана, без да се отчита намотката
+			float a = aAngle;
+			float r = 0.8+0.2*sin(a*6.0+1.5);
+			vec2 p = vec2(r*cos(a),r*sin(a));
+
+			// намиране на съседната точка,
+			// а от нея и вектора-допирателна
+			a = aAngle+0.01;
+			r = 0.8+0.2*sin(a*6.0+1.5);
+			vec2 q = vec2(r*cos(a),r*sin(a))-p;
+			
+			// тангенциалният вектор завъртаме на 90 градуса
+			// и го нормализираме - така вече имаме нормалния вектор
+			q = 0.1*normalize(vec2(-q.y,q.x));
+			
+			// добавяме го към точката p от реотана, и правим
+			// ситно синусоидално отместване с висока честота
+			p = p+0.4*sin(200.0*a)*q;
+			
+			// да не забравим и аспекта
+			gl_Position = vec4(p.x/1.5,p.y,0,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aAngle = gl.getAttribLocation(glprog,"aAngle");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// точки по реотана, ще ни трябват повечко
+			var n = 1500;
+
+			// n ъгъла от 0 до 2*pi
+			var data = [];
+			for(var i=0; i<n; i++) data.push(2*Math.PI*i/n);
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			// цвят
+			gl.uniform3f(uColor,0.3,0.7,0.2);
+			
+			// подаваме ъглите към шейдъра, нека той да си смята
+			gl.enableVertexAttribArray(aAngle);
+			gl.vertexAttribPointer(aAngle,1,gl.FLOAT,false,0,0);
+			gl.drawArrays(gl.LINE_LOOP,0,n);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Реотан</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

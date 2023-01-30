@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Топки за бинго</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function randomBingoTexture()
+		{
+			// случайни две десетични цифри
+			function rDec()
+			{
+				return (random(0,1)+'').slice(-2);
+			}
+			// случайни две 16-тични цифри
+			function rHex()
+			{
+				var r = random(0,3);
+				if (r<1) return '00';
+				if (r<2) return '80';
+				return 'ff';
+			}
+
+			// създаване на 2D образ
+			var cnv = document.getElementById('bingo');
+			cnv.style.display = 'block';
+			var ctx = cnv.getContext('2d');
+			
+			// фон 
+			ctx.fillStyle = '#'+rHex()+rHex()+rHex();
+			ctx.fillRect(0, 0, 512, 512);
+			
+			// две дебели ивици
+			ctx.fillStyle = '#'+rHex()+rHex()+rHex();
+			ctx.fillRect(0, 100, 512, 50);
+			ctx.fillRect(0, 362, 512, 50);
+			
+			// две тънки ивици
+			ctx.fillStyle = '#'+rHex()+rHex()+rHex();
+			ctx.fillRect(0, 160, 512, 20);
+			ctx.fillRect(0, 332, 512, 20);
+			
+			// два бели кръга с черни контури
+			ctx.fillStyle = '#ffffff';
+			ctx.strokeStyle = '#000000';
+			ctx.beginPath();
+			ctx.arc(127,255,80,0,2*PI);
+			ctx.fill();
+			ctx.stroke();
+			ctx.beginPath();
+			ctx.arc(385,255,80,0,2*PI);
+			ctx.fill();
+			ctx.stroke();
+			
+			// две черни числа
+			ctx.fillStyle = '#000000';
+			ctx.font = '6em Arial Black';
+			ctx.textAlign="center";
+			var num=rDec();
+			ctx.fillText(num,127,290); 
+			ctx.fillText(num,385,290); 
+
+			// генериране на текстура
+			var texture = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, cnv);
+			gl.generateMipmap(gl.TEXTURE_2D);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+			gl.bindTexture(gl.TEXTURE_2D, null);
+			cnv.style.display = 'none';
+			return texture;
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0.2,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.2,0.2,0.2);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,1,1,1);
+			gl.uniform1f(uShininess,5);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			gl.uniform1i(uTexUnit, 0);
+			
+			SPHERE_SIDES = 32;
+			
+			// дефиниране на топките
+			n = 24;
+			ball = [];
+			var m = texIdentity();
+			texScale(m,[2,1]);
+			for (var i=0; i<n; i++)
+			{
+				ball[i] = new Sphere([2*(i%4)-3,2*(i>>2)-5,0],0.9);
+				ball[i].color = [1,1,1];
+				ball[i].texture = randomBingoTexture();
+				ball[i].texMatrix = m;
+			}
+		}
+
+		var time=now(), oldTime=time;
+		function now() { return (new Date()).getTime()/1000; }
+		
+		var t = time; // локално време
+		
+		function drawFrame()
+		{
+			oldTime = time;
+			time = now();
+			var dT = time-oldTime;
+
+			// промяна на фоновия цвят
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([0,0,15],[0,0,0],[1,0,0]);
+
+			gl.uniform3f(uLightDir,2*sin(time),2*cos(time),-1);
+			for (var i=0; i<n; i++)
+			{
+				ball[i].rot = [10*i*i+65*time,17*i*i+55*time,30*i*i-60*time,20*i*i-50*time];
+				ball[i].draw();
+			}
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Топки за бинго</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="bingo" width="512" height="512">
+		Искаме canvas, но няма!
+	</canvas>
+
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

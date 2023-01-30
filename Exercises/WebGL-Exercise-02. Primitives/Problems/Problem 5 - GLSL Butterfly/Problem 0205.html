@@ -1,0 +1,69 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>GLSL пеперуда</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		// допълнете променливи в шейдъра
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			// и пресмятане на координатите на точка от пеперудата
+			gl_Position = vec4(...,...,0,1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aRGB = gl.getAttribLocation(glprog,"aRGB");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var n = 250;
+			var data = [ ];
+			for(var i=0; i<n; i++) data.push(i);
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.vertexAttrib3f(aRGB,1,0.2,0);
+
+			// създаден е буфера с n поредни числа, остава да подадете
+			// числата и броя им, за да се нарисува пеперудата
+			gl.drawArrays(gl.LINE_LOOP,0,n);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>GLSL пеперуда</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

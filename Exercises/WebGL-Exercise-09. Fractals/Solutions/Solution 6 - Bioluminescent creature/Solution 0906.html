@@ -1,0 +1,152 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Светещо създание</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		var CURVE_POINTS = 10;
+		
+		// квадратична крива на Безие - конструктор
+		function curveBezierQuadric()
+		{
+			this.n = CURVE_POINTS;
+			this.data = [];
+			for (var i=0; i<this.n; i++) this.data.push(0,0,0);
+			this.data = new Float32Array(this.data);
+			this.buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferData(gl.ARRAY_BUFFER,this.data,gl.DYNAMIC_DRAW);
+			this.color = [0.5,0.8,1];
+			this.color2 = [0.5,0.8,1];
+		}
+		
+		// квадратична крива на Безие - контролни точки
+		curveBezierQuadric.prototype.set = function(p)
+		{
+			for (var i=0; i<this.n; i++)
+			{
+				var t = i/(this.n-1);
+				for (var k=0; k<3; k++)
+					this.data[3*i+k] = (1-t)*(1-t)*p[0][k] + 2*t*(1-t)*p[1][k] + t*t*p[2][k];
+			}
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.bufferSubData(gl.ARRAY_BUFFER,0,this.data);
+		}
+		
+		// квадратична крива на Безие - рисуване
+		curveBezierQuadric.prototype.draw = function()
+		{
+			pushMatrix();
+				gl.vertexAttrib3fv(aNormal,[-1,0,0]);
+				useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.disableVertexAttribArray(aNormal);
+				gl.enableVertexAttribArray(aXYZ);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,3*FLOATS,0*FLOATS);
+				gl.vertexAttrib3fv(aColor,this.color);
+				gl.drawArrays(gl.LINE_STRIP,0,this.n);
+				gl.vertexAttrib3fv(aColor,this.color2);
+				gl.drawArrays(gl.POINTS,this.n-3,3);
+			popMatrix();
+		}
+	
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.6,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+			
+			// тяло на създанието
+			body = new GeodesicSphere([0,0,0],0.5);
+			body.color = [0,0.5,1];
+			
+			// пипала
+			n = 100;
+			hair = [];
+			var k = 2;
+			for (var i=0; i<n; i++)
+			{
+				hair[i] = new curveBezierQuadric();
+				hair[i].color = [random(0.2,0.4),random(0.2,0.4),random(0.3,0.6)];
+				hair[i].color2 = [hair[i].color[0]*k,hair[i].color[1]*k,hair[i].color[2]*k];
+				hair[i].a = i/n*2*PI;
+				hair[i].b = random(-0.9,0.9)*PI/2;
+				hair[i].ofs = random(0.5,1);
+			}
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			var t = 2*time;
+			var a = cos(t)/2;
+			lookAt([15*cos(a),15*sin(a),5],[0,0,0],[0,0,1]);
+			
+			// движение
+			body.center[2] = 2*sin(t);
+			for (var i=0; i<n; i++)
+			{
+				var a = hair[i].a;
+				var b = hair[i].b;
+				var ofs = hair[i].ofs;
+				var r = 3-sin(2*t);
+				hair[i].set([
+					[0.5*cos(a)*cos(b),0.5*sin(a)*cos(b),0.5*sin(b)+2*sin(t)],
+					[r*cos(a)*cos(b),r*sin(a)*cos(b),3*sin(b)+2*sin(t-1*ofs)],
+					[3*cos(a)*cos(b),3*sin(a)*cos(b),1*sin(b)+3*sin(t-3*ofs)]
+				]);
+			}
+			
+			// рисуване на създанието
+			body.draw();
+			for (var i=0; i<n; i++)
+			{
+				hair[i].draw();
+			}
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Светещо създание</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

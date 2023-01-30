@@ -1,0 +1,54 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Септагон</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 10.0;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		void main( )
+		{
+			gl_FragColor = vec4(0,0,0,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var data = [ ]; // В този масив трябва да са 7-те точки
+			
+			// добавете тук код за създаване и рисуване на 7-те точки
+
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Септагон</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

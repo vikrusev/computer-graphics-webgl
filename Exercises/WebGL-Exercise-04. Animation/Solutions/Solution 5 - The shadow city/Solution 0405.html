@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Сенчестият град</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform vec3 uAmbientColor;
+		uniform vec3 uDiffuseColor;
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXYZ,1);
+
+			vec3 light = normalize(-uLightDir);
+			vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+			vColor = uAmbientColor*aColor+aColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			// Потъмняваме цвета според z координатата, пресметната след
+			// прилагането на матрицата на модела (по този начин имаме
+			// реалните координати z, иначе щяха да са само 0 или 1)
+			float z = (uModelMatrix * vec4(aXYZ,1)).z;
+			vColor = vColor*(z/10.0);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vColor;
+		void main( )
+		{
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+
+		var N=20;
+		var building=[]; // глобален масив за параметрите на сградите
+		
+		function drawCube()
+		{
+			useMatrix();
+			gl.drawArrays(gl.TRIANGLES,0,36);
+		}
+
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST); // включваме тест за дълбочина
+			gl.clearColor(1,1,1,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			// куб 1x1x1
+			var v = [ [+0.5,-0.5,-0.5], [+0.5,+0.5,-0.5],
+				 	  [-0.5,+0.5,-0.5], [-0.5,-0.5,-0.5],
+					  [+0.5,-0.5,+0.5], [+0.5,+0.5,+0.5],
+					  [-0.5,+0.5,+0.5], [-0.5,-0.5,+0.5] ];
+			var n = [ [1,0,0], [-1,0,0],
+				 	  [0,1,0], [0,-1,0],
+					  [0,0,1], [0,0,-1] ];
+			var data = [].concat(
+					  v[0],n[0],v[1],n[0],v[4],n[0],
+					  v[4],n[0],v[1],n[0],v[5],n[0],
+					  v[6],n[1],v[2],n[1],v[7],n[1],
+					  v[7],n[1],v[2],n[1],v[3],n[1],
+					  v[5],n[2],v[1],n[2],v[6],n[2],
+					  v[6],n[2],v[1],n[2],v[2],n[2],
+					  v[4],n[3],v[7],n[3],v[0],n[3],
+					  v[0],n[3],v[7],n[3],v[3],n[3],
+					  v[4],n[4],v[5],n[4],v[7],n[4],
+					  v[7],n[4],v[5],n[4],v[6],n[4],
+					  v[0],n[5],v[3],n[5],v[1],n[5],
+					  v[1],n[5],v[3],n[5],v[2],n[5] );
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+
+			gl.vertexAttrib3f(aColor,0.5,0.8,1);
+			gl.uniform3f(uAmbientColor,0.2,0,0);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+			
+			// инициализиране на сградите
+			for (var x=0; x<N; x++)
+			{
+				building[x]=[];
+				for (var y=0; y<N; y++)
+					building[x][y] = {
+						height: random(5,10),
+						speed:  random(1/50,1/500),
+						offset: random(0,2*Math.PI) };
+			}
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([20*Math.cos(frame/300),20*Math.sin(frame/300),20+15*Math.sin(frame/100)], [0,0,2-2*Math.sin(frame/100)], [0,0,1]);
+
+			// рисуване на града
+			for (var x=0; x<N; x++)
+				for (var y=0; y<N; y++)
+				{
+					var b = building[x][y];
+					var z = b.height*(0.5+0.4*Math.cos(b.offset+b.speed*frame));
+					identity();
+					translate([x-N/2,y-N/2,z/2]);
+					scale([1,1,z]);
+					drawCube(frame);
+				}
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Сенчестият град</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

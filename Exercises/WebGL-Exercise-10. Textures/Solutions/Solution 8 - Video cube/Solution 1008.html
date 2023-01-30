@@ -1,0 +1,123 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Видео куб</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+		CanonicalCube.prototype.draw = function(texture)
+		{	
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,8*FLOATS,0*FLOATS);
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,8*FLOATS,0*FLOATS);
+			if (gl.isTexture(texture))
+			{
+				gl.bindTexture(gl.TEXTURE_2D,texture);
+				gl.enableVertexAttribArray(aST);
+				gl.vertexAttribPointer(aST,2,gl.FLOAT,false,8*FLOATS,6*FLOATS);
+			}
+			else
+			{
+				gl.disableVertexAttribArray(aST);
+			}
+			gl.drawArrays(gl.TRIANGLES,0,36);
+		}
+
+		var videoReady = false;
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+			
+			document.getElementById('larna').oncanplaythrough = function()
+				{
+					videoReady = true;
+				};
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0.3,0.5,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.35,0.35,0.35);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uSpecularColor,0.5,1,2);
+			gl.uniform1f(uShininess,10);
+			gl.uniform3f(uLightDir,1,0,-1);
+
+			gl.uniform1i(uTexUnit, 0);
+			
+			// генериране на текстура
+			var texture = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);	
+
+			// дефиниране на видео куб
+			cu = new Cube([0,0,0],4);
+			cu.color = [1,1,1];
+			cu.texture = texture;
+		}
+
+		var time=now();
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			time = now();
+
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([0,0,15],[0,0,0],[1,0,0]);
+
+			if (videoReady) // във Firefox да се коментира този ред, ако видеото се показва бавно
+			{
+				gl.bindTexture(gl.TEXTURE_2D, cu.texture);
+				gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, document.getElementById('larna'));
+				cu.rot = [55*time,45*time,50*time,40*time];
+				cu.draw();
+			}
+			
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+	
+</head>
+
+<body onload="start()">
+	<h2>Видео куб</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+	
+	<video id="larna" width="256" height="256" autoplay loop style="display:none">
+		<source src="Larnaean_Decapus.mp4" type="video/mp4">
+		<source src="Larnaean_Decapus.ogv" type="video/ogg">
+		Искаме video, но няма!
+	</video>
+</body>
